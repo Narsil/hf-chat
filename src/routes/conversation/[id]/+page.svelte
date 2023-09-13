@@ -4,7 +4,7 @@
 	import { pendingMessageIdToRetry } from "$lib/stores/pendingMessageIdToRetry";
 	import { onMount } from "svelte";
 	import { page } from "$app/stores";
-	import { textGenerationStream, type Options } from "@huggingface/inference";
+	import { HfInference, textGenerationStream, type Options } from "@huggingface/inference";
 	import { invalidate } from "$app/navigation";
 	import { base } from "$app/paths";
 	import { shareConversation } from "$lib/shareConversation";
@@ -44,9 +44,11 @@
 		let conversationId = $page.params.id;
 		const responseId = randomUUID();
 
-		const response = textGenerationStream(
+        const hf = new HfInference(data.token)
+
+		const response = hf.textGenerationStream(
 			{
-				model: $page.url.href,
+				model: data.model,
 				inputs,
 				parameters: {
 					...data.models.find((m) => m.id === data.model)?.parameters,
@@ -70,17 +72,17 @@
 			}
 
 			if (conversationId !== $page.params.id) {
-				fetch(`${base}/conversation/${conversationId}/stop-generating`, {
-					method: "POST",
-				}).catch(console.error);
+				// fetch(`${base}/conversation/${conversationId}/stop-generating`, {
+				// 	method: "POST",
+				// }).catch(console.error);
 				break;
 			}
 
 			if (isAborted) {
 				isAborted = false;
-				fetch(`${base}/conversation/${conversationId}/stop-generating`, {
-					method: "POST",
-				}).catch(console.error);
+				// fetch(`${base}/conversation/${conversationId}/stop-generating`, {
+				// 	method: "POST",
+				// }).catch(console.error);
 				break;
 			}
 
@@ -115,9 +117,9 @@
 	}
 
 	async function summarizeTitle(id: string) {
-		await fetch(`${base}/conversation/${id}/summarize`, {
-			method: "POST",
-		});
+		// await fetch(`${base}/conversation/${id}/summarize`, {
+		// 	method: "POST",
+		// });
 	}
 
 	async function writeMessage(message: string, messageId = randomUUID()) {

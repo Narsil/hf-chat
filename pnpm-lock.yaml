@@ -11,6 +11,9 @@ dependencies:
   '@huggingface/inference':
     specifier: ^2.2.0
     version: 2.6.1
+  '@tauri-apps/api':
+    specifier: ^1.4.0
+    version: 1.4.0
   autoprefixer:
     specifier: ^10.4.14
     version: 10.4.15(postcss@8.4.29)
@@ -648,6 +651,11 @@ packages:
       postcss-selector-parser: 6.0.10
       tailwindcss: 3.3.3
     dev: true
+
+  /@tauri-apps/api@1.4.0:
+    resolution: {integrity: sha512-Jd6HPoTM1PZSFIzq7FB8VmMu3qSSyo/3lSwLpoapW+lQ41CL5Dow2KryLg+gyazA/58DRWI9vu/XpEeHK4uMdw==}
+    engines: {node: '>= 14.6.0', npm: '>= 6.6.0', yarn: '>= 1.19.1'}
+    dev: false
 
   /@tauri-apps/cli-darwin-arm64@1.4.0:
     resolution: {integrity: sha512-nA/ml0SfUt6/CYLVbHmT500Y+ijqsuv5+s9EBnVXYSLVg9kbPUZJJHluEYK+xKuOj6xzyuT/+rZFMRapmJD3jQ==}
