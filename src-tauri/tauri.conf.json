@@ -7,13 +7,10 @@
     "distDir": "../build"
   },
   "package": {
-    "productName": "hf-chat2",
+    "productName": "hf-chat",
     "version": "0.1.0"
   },
   "tauri": {
-    "allowlist": {
-      "all": false
-    },
     "bundle": {
       "active": true,
       "category": "DeveloperTool",
@@ -50,15 +47,12 @@
     "security": {
       "csp": null
     },
-    "updater": {
-      "active": false
-    },
     "windows": [
       {
         "fullscreen": false,
         "height": 600,
         "resizable": true,
-        "title": "hf-chat2",
+        "title": "hf-chat",
         "width": 800
       }
     ]

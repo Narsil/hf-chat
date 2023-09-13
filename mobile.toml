@@ -1,0 +1,5 @@
+[app]
+name = "hf-chat"
+stylized-name = "Hf Chat"
+domain = "example.com"
+template-pack = "bevy"

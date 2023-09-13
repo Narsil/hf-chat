@@ -1,4 +1,4 @@
-use hf_hub::Cache;
+// use hf_hub::Cache;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::App;
@@ -99,8 +99,9 @@ async fn load() -> Result<Load, String> {
         search_enabled: false,
         custom_prompts: HashMap::new(),
     };
-    let cache = Cache::default();
-    let token = cache.token();
+    // let cache = Cache::default();
+    // let token = cache.token();
+    let token = None;
     let load = Load {
         conversations,
         models,
