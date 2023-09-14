@@ -1,21 +1,20 @@
-// use hf_hub::Cache;
+use sea_orm::{ConnectionTrait, Database, DbBackend, DbErr, Statement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::App;
+
+#[cfg(not(feature = "mobile"))]
+use hf_hub::Cache;
+
+mod entities;
+pub mod migrations;
+use entities::conversation::Model as Conversation;
+use entities::model::{Model, Parameters, PromptExample, Prompts};
 
 #[cfg(mobile)]
 mod mobile;
 #[cfg(mobile)]
 pub use mobile::*;
-
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct Conversation {
-    id: String,
-    title: String,
-    model: String,
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,37 +24,6 @@ struct Settings {
     active_model: String,
     search_enabled: bool,
     custom_prompts: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct PromptExample {
-    title: String,
-    prompt: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct Parameters {
-    temperature: f32,
-    truncate: usize,
-    max_new_tokens: usize,
-    stop: Vec<String>,
-    top_p: f32,
-    top_k: usize,
-    repetition_penalty: f32,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Model {
-    id: String,
-    name: String,
-    website_url: String,
-    dataset_name: String,
-    display_name: String,
-    description: String,
-    prompt_examples: Vec<PromptExample>,
-    parameters: Parameters,
-    preprompt: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -72,15 +40,17 @@ struct Load {
 
 #[tauri::command]
 async fn load() -> Result<Load, String> {
+    init_db().await;
     let conversations = vec![];
     let models = vec![Model {
+        internal_id: 0,
         id: "tiiuae/falcon-180B-chat".into(),
         name: "tiiuae/falcon-180B-chat".into(),
         website_url: "https://api-inference.huggingface.co/models/tiiuae/falcon-180B-chat".into(),
         dataset_name: "OpenAssistant/oasst1".into(),
         display_name: "tiiuae/falcon-180B-chat".into(),
         description: "A good alternative to ChatGPT".into(),
-        prompt_examples: vec![PromptExample{ title: "Write an email from bullet list".into(), prompt: "As a restaurant owner, write a professional email to the supplier to get these products every week: \n\n- Wine (x10)\n- Eggs (x24)\n- Bread (x12)".into() }, ],
+        prompt_examples: Prompts{prompts: vec![PromptExample{ title: "Write an email from bullet list".into(), prompt: "As a restaurant owner, write a professional email to the supplier to get these products every week: \n\n- Wine (x10)\n- Eggs (x24)\n- Bread (x12)".into() }, ]},
         parameters: Parameters {
             temperature: 0.9,
             truncate: 1000,
@@ -99,9 +69,7 @@ async fn load() -> Result<Load, String> {
         search_enabled: false,
         custom_prompts: HashMap::new(),
     };
-    // let cache = Cache::default();
-    // let token = cache.token();
-    let token = None;
+    let token = cache().token();
     let load = Load {
         conversations,
         models,
@@ -112,6 +80,17 @@ async fn load() -> Result<Load, String> {
         token,
     };
     Ok(load)
+}
+
+fn cache() -> Cache {
+    #[cfg(not(feature = "mobile"))]
+    let cache = Cache::default();
+    #[cfg(feature = "mobile")]
+    let cache = {
+        let path = std::path::Path::new("/data/data/co/huggingface/databases");
+        let cache = Cache::new(path);
+    };
+    cache
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -163,6 +142,22 @@ pub type SetupHook = Box<dyn FnOnce(&mut App) -> Result<(), Box<dyn std::error::
 #[derive(Default)]
 pub struct AppBuilder {
     setup: Option<SetupHook>,
+}
+async fn init_db() {
+    let mut path = cache().path().clone();
+    path.push("chat");
+    path.push("db.sqlite");
+    if !path.exists() {
+        let mut dir = path.clone();
+        dir.pop();
+        std::fs::create_dir_all(dir).ok();
+        let mut file = std::fs::File::create(path.clone()).unwrap();
+    } else {
+    }
+
+    let db = Database::connect(format!("sqlite:{}", path.to_str().unwrap()))
+        .await
+        .unwrap();
 }
 
 impl AppBuilder {
