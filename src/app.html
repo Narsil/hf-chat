@@ -15,6 +15,29 @@
 			window.gaId = "%gaId%";
 			window.gaIdDeprecated = "%gaIdDeprecated%";
 		</script>
+        <script>
+            const _fetch = window.fetch;
+            const invoke = window.__TAURI__.invoke;
+            window.fetchProxy = (...args) => _fetch(...args);
+            window.fetch = async (url, opts, ...args) => {
+
+                console.log("Raw Call", url, opts, args);
+            if((url.startsWith("/") || url.includes("__data.json")) && !url.includes("__TAURI_CHANNEL__")){
+                const response = await invoke("fetch", {url, opts});
+                return new Response(response.content);
+                // response.json = async () => response.content;
+                // response.body = async () => response.content;
+                // return response;
+            }else{
+                return window.fetchProxy(url, opts, ...args);
+            }
+
+
+                // console.log("Raw Call", args);
+                // // Be sure to set `build.withGlobalTauri` in `tauri.conf.json` to true
+                // return window.fetchProxy(...args);
+            }
+        </script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover" class="h-full dark:bg-gray-900">

@@ -4,20 +4,8 @@ import { internalIpV4 } from 'internal-ip'
 import Icons from "unplugin-icons/vite";
 
 export default defineConfig(async () => {
-    const host = await internalIpV4();
-
     /** @type {import('vite').UserConfig} */
-    const config = {
-        server: {
-            host: '0.0.0.0', // listen on all addresses
-            port: 5173,
-            strictPort: true,
-            hmr: {
-                protocol: 'ws',
-                host: "192.168.1.227",
-                port: 5183,
-            },
-        },
+    var config = {
         plugins: [
             sveltekit(),
             Icons({ compiler: "svelte" })
@@ -26,6 +14,21 @@ export default defineConfig(async () => {
             include: ['src/**/*.{test,spec}.{js,ts}']
         }
     };
+    if (process.env.MOBILE) {
+        const host = await internalIpV4();
+        const server = {
+            host: '0.0.0.0', // listen on all addresses
+            port: 5173,
+            strictPort: true,
+            hmr: {
+                protocol: 'ws',
+                host: "192.168.15.18",
+                port: 5183,
+            },
+        };
+        config.server = server;
+    }
+
 
     return config;
 });

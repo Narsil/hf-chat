@@ -160,6 +160,21 @@ async fn init_db() {
         .unwrap();
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Response {
+    ok: bool,
+    content: String,
+}
+
+#[tauri::command]
+async fn fetch(url: String, opts: Option<serde_json::Value>) -> Result<Response, String> {
+    println!("Fetch {url} {opts:?}");
+    Ok(Response {
+        ok: true,
+        content: "Hello".into(),
+    })
+}
+
 impl AppBuilder {
     pub fn new() -> Self {
         Self::default()
@@ -180,7 +195,8 @@ impl AppBuilder {
             .invoke_handler(tauri::generate_handler![
                 load,
                 conversation,
-                load_conversation
+                load_conversation,
+                fetch,
             ])
             .setup(move |app| {
                 if let Some(setup) = setup {

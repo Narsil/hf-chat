@@ -5,7 +5,6 @@
 	import { ERROR_MESSAGES, error } from "$lib/stores/errors";
 	import { pendingMessage } from "$lib/stores/pendingMessage";
 	import { findCurrentModel } from "$lib/utils/models";
-    import { invoke } from '@tauri-apps/api/tauri'
 
 	export let data;
 	let loading = false;
@@ -13,22 +12,21 @@
 	async function createConversation(message: string) {
 		try {
 			loading = true;
-            const { conversationId } = await invoke("conversation", { model: data.settings.activeModel });
-			// const res = await fetch(`${base}/conversation`, {
-			// 	method: "POST",
-			// 	headers: {
-			// 		"Content-Type": "application/json",
-			// 	},
-			// 	body: JSON.stringify({ model: data.settings.activeModel }),
-			// });
+			const res = await fetch(`${base}/conversation`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ model: data.settings.activeModel }),
+			});
 
-			// if (!res.ok) {
-			// 	error.set("Error while creating conversation, try again.");
-			// 	console.error("Error while creating conversation: " + (await res.text()));
-			// 	return;
-			// }
+			if (!res.ok) {
+				error.set("Error while creating conversation, try again.");
+				console.error("Error while creating conversation: " + (await res.text()));
+				return;
+			}
 
-			// const { conversationId } = await res.json();
+			const { conversationId } = await res.json();
 
 			// Ugly hack to use a store as temp storage, feel free to improve ^^
 			pendingMessage.set(message);
