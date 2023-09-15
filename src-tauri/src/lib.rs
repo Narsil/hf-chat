@@ -2,6 +2,7 @@ use sea_orm::{ConnectionTrait, Database, DbBackend, DbErr, Statement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::App;
+use url::Url;
 
 #[cfg(not(feature = "mobile"))]
 use hf_hub::Cache;
@@ -168,11 +169,19 @@ struct Response {
 
 #[tauri::command]
 async fn fetch(url: String, opts: Option<serde_json::Value>) -> Result<Response, String> {
+    let url = Url::parse(&url).map_err(|e| e.to_string())?;
+    let content = match url.path() {
+        // "/__data.json" => {
+        //     let content = load().await?;
+        //     serde_json::to_string(&content).map_err(|e| e.to_string())?
+        // }
+        path => {
+            println!("Unkown path {path}");
+            "Hello".into()
+        }
+    };
     println!("Fetch {url} {opts:?}");
-    Ok(Response {
-        ok: true,
-        content: "Hello".into(),
-    })
+    Ok(Response { ok: true, content })
 }
 
 impl AppBuilder {

@@ -4,7 +4,7 @@
 	import { page } from "$app/stores";
 	import "../styles/main.css";
 	import { base } from "$app/paths";
-	import { PUBLIC_ORIGIN, PUBLIC_APP_DISCLAIMER } from "$env/static/public";
+	import { PUBLIC_ORIGIN, PUBLIC_APP_DISCLAIMER, PUBLIC_APP_ASSETS, PUBLIC_APP_NAME } from "$env/static/public";
 
 	import { shareConversation } from "$lib/shareConversation";
 	import { UrlDependency } from "$lib/types/UrlDependency";
@@ -15,10 +15,9 @@
 	import Toast from "$lib/components/Toast.svelte";
 	import SettingsModal from "$lib/components/SettingsModal.svelte";
 	import LoginModal from "$lib/components/LoginModal.svelte";
-	import { PUBLIC_TAURI, PUBLIC_APP_ASSETS, PUBLIC_APP_NAME } from "$env/static/public";
-    import { invoke } from '@tauri-apps/api/tauri'
 
 	export let data;
+    // console.log("DATA", data);
 
 	let isNavOpen = false;
 	let isSettingsOpen = false;

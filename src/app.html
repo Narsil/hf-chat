@@ -22,15 +22,17 @@
             window.fetch = async (url, opts, ...args) => {
 
                 console.log("Raw Call", url, opts, args);
-            if((url.startsWith("/") || url.includes("__data.json")) && !url.includes("__TAURI_CHANNEL__")){
-                const response = await invoke("fetch", {url, opts});
-                return new Response(response.content);
-                // response.json = async () => response.content;
-                // response.body = async () => response.content;
-                // return response;
-            }else{
-                return window.fetchProxy(url, opts, ...args);
-            }
+                const result =  await window.fetchProxy(url, opts, ...args);
+                const body = await result.json();
+                console.log("Raw response", result, body);
+                return result
+                if((url.startsWith("/") || url.includes("__data.json")) && !url.includes("__TAURI_CHANNEL__")){
+                    const response = await invoke("fetch", {url, opts});
+                    console.log("Tauri response", response.content)
+                    return new Response(response.content);
+                }else{
+                    return window.fetchProxy(url, opts, ...args);
+                }
 
 
                 // console.log("Raw Call", args);

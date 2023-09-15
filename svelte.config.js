@@ -1,9 +1,11 @@
 import staticAdapter from "@sveltejs/adapter-static";
 import nodeAdapter from "@sveltejs/adapter-node";
 import { vitePreprocess } from '@sveltejs/kit/vite';
+import dotenv from "dotenv";
+dotenv.config({ path: "./.env.local" });
 
 
-const adapter = (process.env.TAURI) ?
+const adapter = (process.env.PUBLIC_TAURI) ?
     staticAdapter({ fallback: "index.html" }) : nodeAdapter();
 
 /** @type {import('@sveltejs/kit').Config} */
