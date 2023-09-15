@@ -84,7 +84,7 @@ async fn load() -> Result<Load, String> {
         parameters: Parameters {
             temperature: 0.9,
             truncate: 1000,
-            max_new_tokens: 20,
+            max_new_tokens: 1024,
             stop: vec!["<|endoftext|>".into(), "Falcon:".into(), "User:".into()],
             top_p: 0.95,
             repetition_penalty: 1.2,
@@ -101,7 +101,7 @@ async fn load() -> Result<Load, String> {
     };
     // let cache = Cache::default();
     // let token = cache.token();
-    let token = None;
+    let token = Some("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".into());
     let load = Load {
         conversations,
         models,
