@@ -23,6 +23,7 @@ pub struct Parameters {
     pub top_p: f32,
     pub top_k: usize,
     pub repetition_penalty: f32,
+    pub return_full_text: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, DeriveEntityModel)]
