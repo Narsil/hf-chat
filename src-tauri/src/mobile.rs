@@ -1,4 +1,5 @@
 #[tauri::mobile_entry_point]
-fn main() {
-    super::AppBuilder::new().run();
+#[tokio::main]
+async fn main() {
+    super::AppBuilder::new().run().await
 }

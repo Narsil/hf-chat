@@ -27,6 +27,7 @@ sea-orm = { version = "0.12.2", features = ["sqlx-sqlite", "runtime-tokio-rustls
 chrono = "0.4.30"
 sea-orm-migration = { version = "0.12.2", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 tokio = { version = "1.32.0", features = ["macros"] }
+thiserror = "1.0.48"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

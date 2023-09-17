@@ -1,9 +1,8 @@
-use sea_orm::{ConnectionTrait, Database, DbBackend, DbErr, Statement};
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbErr, Statement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::App;
 
-#[cfg(not(feature = "mobile"))]
 use hf_hub::Cache;
 
 mod entities;
@@ -15,6 +14,35 @@ use entities::model::{Model, Parameters, PromptExample, Prompts};
 mod mobile;
 #[cfg(mobile)]
 pub use mobile::*;
+
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error(transparent)]
+    DbErr(#[from] sea_orm::DbErr),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+// we must manually implement serde::Serialize
+impl serde::Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+// impl std::fmt::Display for Error {
+//     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+//         write!(fmt, "{self}")
+//     }
+// }
+
+struct State {
+    db: DatabaseConnection,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,7 +68,6 @@ struct Load {
 
 #[tauri::command]
 async fn load() -> Result<Load, String> {
-    init_db().await;
     let conversations = vec![];
     let models = vec![Model {
         internal_id: 0,
@@ -83,12 +110,13 @@ async fn load() -> Result<Load, String> {
 }
 
 fn cache() -> Cache {
-    #[cfg(not(feature = "mobile"))]
+    #[cfg(not(mobile))]
     let cache = Cache::default();
-    #[cfg(feature = "mobile")]
+    #[cfg(mobile)]
     let cache = {
         let path = std::path::Path::new("/data/data/co/huggingface/databases");
-        let cache = Cache::new(path);
+        let cache = Cache::new(path.to_path_buf());
+        cache
     };
     cache
 }
@@ -143,7 +171,7 @@ pub type SetupHook = Box<dyn FnOnce(&mut App) -> Result<(), Box<dyn std::error::
 pub struct AppBuilder {
     setup: Option<SetupHook>,
 }
-async fn init_db() {
+async fn init_db() -> Result<DatabaseConnection, Error> {
     let mut path = cache().path().clone();
     path.push("chat");
     path.push("db.sqlite");
@@ -151,13 +179,12 @@ async fn init_db() {
         let mut dir = path.clone();
         dir.pop();
         std::fs::create_dir_all(dir).ok();
-        let mut file = std::fs::File::create(path.clone()).unwrap();
+        std::fs::File::create(path.clone())?;
     } else {
     }
 
-    let db = Database::connect(format!("sqlite:{}", path.to_str().unwrap()))
-        .await
-        .unwrap();
+    let filename = format!("sqlite:{}", path.display());
+    Ok(Database::connect(filename).await?)
 }
 
 impl AppBuilder {
@@ -174,9 +201,12 @@ impl AppBuilder {
         self
     }
 
-    pub fn run(self) {
+    pub async fn run(self) {
         let setup = self.setup;
+        let db = init_db().await.unwrap();
+
         tauri::Builder::default()
+            .manage(State { db })
             .invoke_handler(tauri::generate_handler![
                 load,
                 conversation,
