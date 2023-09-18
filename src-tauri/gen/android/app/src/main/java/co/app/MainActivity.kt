@@ -1,3 +1,3 @@
-package com.huggingface.app
+package co.app
 
 class MainActivity : TauriActivity()

@@ -1,13 +1,14 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "conversation")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id: i32,
+    pub id: Uuid,
     pub title: String,
-    pub model_id: Option<i32>,
+    pub model_id: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -19,7 +20,7 @@ pub enum Relation {
     #[sea_orm(
         belongs_to = "super::model::Entity",
         from = "Column::ModelId",
-        to = "super::model::Column::InternalId",
+        to = "super::model::Column::Id",
         on_update = "NoAction",
         on_delete = "Cascade"
     )]

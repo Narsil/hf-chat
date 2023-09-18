@@ -8,16 +8,16 @@ export default defineConfig(async () => {
 
     /** @type {import('vite').UserConfig} */
     const config = {
-        server: {
-            host: '0.0.0.0', // listen on all addresses
-            port: 5173,
-            strictPort: true,
-            hmr: {
-                protocol: 'ws',
-                host: "192.168.1.72",
-                port: 5183,
-            },
-        },
+        // server: {
+        //     host: '0.0.0.0', // listen on all addresses
+        //     port: 5173,
+        //     strictPort: true,
+        //     hmr: {
+        //         protocol: 'ws',
+        //         host: '10.101.3.207',
+        //         port: 5183,
+        //     },
+        // },
         plugins: [
             sveltekit(),
             Icons({ compiler: "svelte" })

@@ -16,6 +16,8 @@
 	import type { WebSearchMessage } from "$lib/types/WebSearch";
 	import type { Message } from "$lib/types/Message";
 	import { PUBLIC_APP_DISCLAIMER } from "$env/static/public";
+    import { invoke } from '@tauri-apps/api'
+    import { listen } from '@tauri-apps/api/event'
 
 	export let data;
 
@@ -44,46 +46,87 @@
 		let conversationId = $page.params.id;
 		const responseId = randomUUID();
 
-        const hf = new HfInference(data.token)
+		// const response = textGenerationStream(
+		// 	{
+		// 		model: $page.url.href,
+		// 		inputs,
+		// 		parameters: {
+		// 			...data.models.find((m) => m.id === data.model)?.parameters,
+		// 			return_full_text: false,
+		// 		},
+		// 	},
+		// 	{
+		// 		id: messageId,
+		// 		response_id: responseId,
+		// 		is_retry: isRetry,
+		// 		use_cache: false,
+		// 		web_search_id: webSearchId,
+		// 	} as Options
+		// );
 
-		const response = hf.textGenerationStream(
+        let unlisten = undefined;
+        const response = new ReadableStream({
+                start(controller){
+                    unlisten = listen('text-generation', (output) => {
+                        output = output.payload;
+                        controller.enqueue(output);
+                    });
+                }
+        });
+
+		await invoke("generate",
 			{
 				model: data.model,
+                conversationId,
 				inputs,
 				parameters: {
 					...data.models.find((m) => m.id === data.model)?.parameters,
 					return_full_text: false,
 				},
+                opions: {
+                    id: messageId,
+                    response_id: responseId,
+                    is_retry: isRetry,
+                    use_cache: false,
+                    web_search_id: webSearchId,
+                } as Options
 			},
-			{
-				id: messageId,
-				response_id: responseId,
-				is_retry: isRetry,
-				use_cache: false,
-				web_search_id: webSearchId,
-			} as Options
+			// {
+			// 	id: messageId,
+			// 	response_id: responseId,
+			// 	is_retry: isRetry,
+			// 	use_cache: false,
+			// 	web_search_id: webSearchId,
+			// } as Options
 		);
 
-		for await (const output of response) {
+        console.log("RESPONSE", response);
+        let done = false;
+        const reader = response.getReader();
+        while (!done){
+            const {value, done} = await reader.read();
+            const output = value;
+		// for await (const output of response) {
 			pending = false;
+            console.log(output);
 
 			if (!output) {
-				break;
+                break;
 			}
 
 			if (conversationId !== $page.params.id) {
-				// fetch(`${base}/conversation/${conversationId}/stop-generating`, {
-				// 	method: "POST",
-				// }).catch(console.error);
-				break;
+				fetch(`${base}/conversation/${conversationId}/stop-generating`, {
+					method: "POST",
+				}).catch(console.error);
+                break;
 			}
 
 			if (isAborted) {
 				isAborted = false;
-				// fetch(`${base}/conversation/${conversationId}/stop-generating`, {
-				// 	method: "POST",
-				// }).catch(console.error);
-				break;
+				fetch(`${base}/conversation/${conversationId}/stop-generating`, {
+					method: "POST",
+				}).catch(console.error);
+                break;
 			}
 
 			// final message
@@ -95,6 +138,8 @@
 					lastMessage.webSearchId = webSearchId;
 					messages = [...messages];
 				}
+                // unlisten.then(() => {});
+                // await unlisten;
 				break;
 			}
 
@@ -113,7 +158,8 @@
 					messages = [...messages];
 				}
 			}
-		}
+        }
+        await unlisten;
 	}
 
 	async function summarizeTitle(id: string) {

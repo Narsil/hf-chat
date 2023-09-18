@@ -1,20 +1,27 @@
 use futures_util::StreamExt;
 use reqwest::header::AUTHORIZATION;
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbErr, Statement};
+use sea_orm::ActiveValue::Set;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, ModelTrait,
+    QueryFilter, QueryOrder,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::Write;
 use tauri::App;
 use tauri::Manager;
+use uuid::Uuid;
 
 use hf_hub::Cache;
 
 mod entities;
-// mod local;
+mod local;
 pub mod migrations;
-use entities::conversation::Model as Conversation;
-use entities::model::{Model, Parameters, PromptExample, Prompts};
-// use local::load;
-use tracing::info;
+use entities::conversation::{self, Model as Conversation};
+use entities::message::{self, Model as Message};
+use entities::model::{self, Model, Parameters};
+use local::load_local;
+use tracing::{debug, info};
 
 #[cfg(mobile)]
 mod mobile;
@@ -22,7 +29,7 @@ mod mobile;
 pub use mobile::*;
 
 #[derive(Debug, thiserror::Error)]
-enum Error {
+pub enum Error {
     #[error(transparent)]
     DbErr(#[from] sea_orm::DbErr),
 
@@ -37,6 +44,15 @@ enum Error {
 
     #[error(transparent)]
     Tauri(#[from] tauri::Error),
+
+    #[error(transparent)]
+    Api(#[from] hf_hub::api::sync::ApiError),
+
+    #[error(transparent)]
+    Candle(#[from] candle::Error),
+
+    #[error(transparent)]
+    Tokenizer(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
 // we must manually implement serde::Serialize
@@ -83,51 +99,11 @@ struct Load {
 }
 
 #[tauri::command]
-async fn load() -> Result<Load, String> {
-    let conversations = vec![];
-    let falcon = Model {
-        internal_id: 0,
-        id: "tiiuae/falcon-180B-chat".into(),
-        name: "tiiuae/falcon-180B-chat".into(),
-        website_url: "https://api-inference.huggingface.co/models/tiiuae/falcon-180B-chat".into(),
-        dataset_name: "OpenAssistant/oasst1".into(),
-        display_name: "tiiuae/falcon-180B-chat".into(),
-        description: "A good alternative to ChatGPT".into(),
-        prompt_examples: Prompts{prompts: vec![PromptExample{ title: "Write an email from bullet list".into(), prompt: "As a restaurant owner, write a professional email to the supplier to get these products every week: \n\n- Wine (x10)\n- Eggs (x24)\n- Bread (x12)".into() }, ]},
-        parameters: Parameters {
-            temperature: 0.9,
-            truncate: 1000,
-            max_new_tokens: 20,
-            stop: vec!["<|endoftext|>".into(), "Falcon:".into(), "User:".into()],
-            top_p: 0.95,
-            repetition_penalty: 1.2,
-            top_k: 50,
-            return_full_text: false,
-        }, preprompt: "".into()};
-    let llama = Model {
-        internal_id: 0,
-        id: "meta-llama/Llama-2-7b-chat-hf".into(),
-        name: "meta-llama/Llama-2-7b-chat-hf".into(),
-        website_url: "https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf".into(),
-        dataset_name: "".into(),
-        display_name: "meta-llama/Llama-2-7b-chat-hf".into(),
-        description: "A good alternative to ChatGPT".into(),
-        prompt_examples: Prompts{prompts: vec![PromptExample{ title: "Write an email from bullet list".into(), prompt: "As a restaurant owner, write a professional email to the supplier to get these products every week: \n\n- Wine (x10)\n- Eggs (x24)\n- Bread (x12)".into() }, ]},
-        parameters: Parameters {
-            temperature: 0.9,
-            truncate: 1000,
-            max_new_tokens: 20,
-            stop: vec!["<|endoftext|>".into(), "Falcon:".into(), "User:".into()],
-            top_p: 0.95,
-            repetition_penalty: 1.2,
-            top_k: 50,
-            return_full_text: false,
-        },
-        preprompt: "".into(),
-    };
-    let models = vec![llama, falcon];
-    let active_model = "meta-llama/Llama-2-7b-chat-hf".into();
-    // let active_model = "tiiuae/falcon-180B-chat".into();
+async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
+    let conversations = conversation::Entity::find().all(&state.db).await?;
+    let models = model::Entity::find().all(&state.db).await?;
+    // let active_model = "meta-llama/Llama-2-7b-chat-hf".into();
+    let active_model = "tiiuae/falcon-180B-chat".into();
     let settings = Settings {
         share_conversations_with_model_authors: true,
         ethics_model_accepted_at: None,
@@ -153,8 +129,17 @@ fn cache() -> Cache {
     let cache = Cache::default();
     #[cfg(mobile)]
     let cache = {
-        let path = std::path::Path::new("/data/data/co/huggingface/databases");
+        let path = std::path::Path::new("/data/data/co.app/cache/");
+        println!("Creating cache {}", path.display());
+        std::fs::create_dir_all(path).expect("Could not create dir");
         let cache = Cache::new(path.to_path_buf());
+        let token_path = cache.token_path();
+        if !token_path.exists() {
+            let mut file = std::fs::File::create(token_path).unwrap();
+            file.write(b"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")
+                .unwrap();
+        }
+        println!("Created cache {}", path.display());
         cache
     };
     cache
@@ -163,21 +148,34 @@ fn cache() -> Cache {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConversationResponse {
-    conversation_id: String,
+    conversation_id: Uuid,
 }
 
 #[tauri::command]
-async fn conversation(model: String) -> Result<ConversationResponse, String> {
-    Ok(ConversationResponse {
-        conversation_id: "000000000000".into(),
-    })
-}
+async fn conversation(
+    state: tauri::State<'_, State>,
+    model: String,
+) -> Result<ConversationResponse, Error> {
+    // Rename for naming sanity
+    let model_id = model;
+    let model: Vec<model::Model> = model::Entity::find()
+        .filter(model::Column::Id.contains(model_id))
+        .order_by_asc(model::Column::Name)
+        .all(&state.db)
+        .await?;
+    let id = Uuid::new_v4();
+    let conversation = conversation::ActiveModel {
+        model_id: Set(Some(model[0].id.clone())),
+        id: Set(id),
+        title: Set("Conversation".into()),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+    };
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct Message {
-    content: String,
-    from: String,
-    id: String,
+    conversation.insert(&state.db).await.ok();
+    Ok(ConversationResponse {
+        conversation_id: id,
+    })
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -189,12 +187,25 @@ struct ConversationView {
 }
 
 #[tauri::command]
-async fn load_conversation(id: String) -> Result<ConversationView, String> {
+async fn load_conversation(
+    state: tauri::State<'_, State>,
+    id: Uuid,
+) -> Result<ConversationView, Error> {
+    let conversation: Option<Conversation> = conversation::Entity::find()
+        .filter(conversation::Column::Id.eq(id))
+        .one(&state.db)
+        .await?;
+    let conversation = conversation.unwrap();
+    // Then, find all related fruits of this cake
+    let messages: Vec<Message> = conversation
+        .find_related(message::Entity)
+        .all(&state.db)
+        .await?;
     Ok(ConversationView {
-        model: "meta-llama/Llama-2-7b-chat-hf".into(),
+        model: conversation.model_id.clone().unwrap(),
         // model: "codellama/CodeLlama-7b-hf".into(),
-        title: "Test".into(),
-        messages: vec![],
+        title: conversation.title.clone(),
+        messages,
         // messages: vec![Message {
         //     content: "User: Hello".into(),
         //     from: "user".into(),
@@ -205,21 +216,21 @@ async fn load_conversation(id: String) -> Result<ConversationView, String> {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct Query {
+pub struct Query {
     inputs: String,
     parameters: Parameters,
     stream: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct Token {
+pub struct Token {
     id: usize,
     text: String,
     logprob: f32,
     special: bool,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct Generation {
+pub struct Generation {
     token: Token,
     generated_text: Option<String>,
     details: Option<bool>,
@@ -255,6 +266,7 @@ If a question does not make any sense, or is not factually coherent, explain why
 fn query_api(
     app: tauri::AppHandle,
     model: String,
+    conversation_id: Uuid,
     inputs: String,
     parameters: Parameters,
     token: Option<&String>,
@@ -281,6 +293,19 @@ fn query_api(
             let generation: Generation = serde_json::from_slice(chunk)?;
             // println!("Chunk: {:?}", generation);
             // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            if let Some(generated_text) = &generation.generated_text {
+                let message = message::ActiveModel {
+                    conversation_id: Set(conversation_id),
+                    id: Set(Uuid::new_v4()),
+                    from: Set("assistant".into()),
+                    content: Set(generated_text.clone()),
+                    created_at: Set(chrono::Utc::now()),
+                    updated_at: Set(chrono::Utc::now()),
+                };
+                let db = init_db().await?;
+                message.insert(&db).await.ok();
+            }
+
             app.emit_all("text-generation", generation)?;
         }
         Ok::<(), Error>(())
@@ -293,7 +318,6 @@ fn query_local(
     model: String,
     inputs: String,
     parameters: Parameters,
-    token: Option<&String>,
 ) -> Result<(), Error> {
     let url = format!("https://api-inference.huggingface.co/models/{model}");
     info!("Generate {url}");
@@ -302,27 +326,10 @@ fn query_local(
         parameters,
         stream: true,
     };
-    tokio::task::spawn(async move {
-        // let pipeline = load_local(query);
-        // for generation in pipeline.iter() {
-            for i in 0..query.parameters.max_new_tokens {
-                let generated_text = if i == 9 {
-                    Some("finished !".into())
-                } else {
-                    None
-                };
-                let generation = Generation {
-                    token: Token {
-                        id: 0,
-                        logprob: 0.0,
-                        text: format!("{i} "),
-                        special: false,
-                    },
-                    generated_text,
-                    details: None,
-                };
-                // println!("Chunk: {:?}", generation);
-                // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    tokio::task::spawn_blocking(move || {
+        let mut pipeline = load_local(query)?;
+        for generation in pipeline.iter() {
+            let generation = generation?;
             app.emit_all("text-generation", generation)?;
         }
         Ok::<(), Error>(())
@@ -335,20 +342,38 @@ async fn generate(
     app: tauri::AppHandle,
     state: tauri::State<'_, State>,
     model: String,
+    conversation_id: Uuid,
     inputs: String,
     parameters: Parameters,
     // options: Options,
 ) -> Result<(), Error> {
     tracing::debug!("Generating for {model}");
+    let message = message::ActiveModel {
+        conversation_id: Set(conversation_id),
+        id: Set(Uuid::new_v4()),
+        from: Set("user".into()),
+        content: Set(inputs.clone()),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+    };
+
+    message.insert(&state.db).await.ok();
     match &model[..] {
         "tiiuae/falcon-180B-chat" => {
             let inputs = build_falcon_prompt(inputs);
-            query_api(app, model, inputs, parameters, state.token.as_ref())
+            query_api(
+                app,
+                model,
+                conversation_id,
+                inputs,
+                parameters,
+                state.token.as_ref(),
+            )
         }
         "meta-llama/Llama-2-7b-chat-hf" => {
             let inputs = build_llama_prompt(inputs);
             // query_api(app, model, inputs, parameters, state.token.as_ref())
-            query_local(app, model, inputs, parameters, state.token.as_ref())
+            query_local(app, model, inputs, parameters)
         }
         model => todo!("Need to implement proper template {model}"),
     }
@@ -367,13 +392,17 @@ async fn init_db() -> Result<DatabaseConnection, Error> {
     if !path.exists() {
         let mut dir = path.clone();
         dir.pop();
-        std::fs::create_dir_all(dir).ok();
-        std::fs::File::create(path.clone())?;
-    } else {
-    }
+        debug!("Attempting to create dir {}", dir.display());
+        std::fs::create_dir_all(dir).expect("Could not create dir");
+        std::fs::File::create(path.clone()).expect("Create file");
+    };
 
+    use sea_orm_migration::MigratorTrait;
     let filename = format!("sqlite:{}", path.display());
-    Ok(Database::connect(filename).await?)
+    let db = Database::connect(filename).await?;
+    migrations::Migrator::up(&db, None).await?;
+    debug!("Ran migrations");
+    Ok(db)
 }
 
 impl AppBuilder {
@@ -392,13 +421,21 @@ impl AppBuilder {
 
     pub async fn run(self) {
         let setup = self.setup;
+        println!("Start the run");
         tracing_subscriber::fmt::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .init();
-        let db = init_db().await.unwrap();
+        #[cfg(mobile)]
+        android_logger::init_once(
+            android_logger::Config::default().with_max_level(tracing::log::LevelFilter::Trace),
+        );
+        tracing::info!("Start the db");
+        let db = init_db().await.expect("Failed to create db");
+        tracing::info!("get the token");
         let token = cache().token();
 
         tauri::Builder::default()
+            .plugin(tauri_plugin_fs::init())
             .manage(State { db, token })
             .invoke_handler(tauri::generate_handler![
                 load,

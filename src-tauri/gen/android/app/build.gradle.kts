@@ -6,10 +6,10 @@ plugins {
 
 android {
     compileSdk = 33
-    namespace = "com.huggingface.app"
+    namespace = "co.app"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "com.huggingface.app"
+        applicationId = "co.app"
         minSdk = 24
         targetSdk = 33
         versionCode = 1

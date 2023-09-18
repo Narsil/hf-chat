@@ -11,14 +11,8 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Model::Table)
                     .if_not_exists()
-                    .col(
-                        ColumnDef::new(Model::InternalId)
-                            .integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(Model::Id).string().not_null())
+                    .col(ColumnDef::new(Model::Id).string().not_null().primary_key())
+                    // .col(ColumnDef::new(Model::Id).string().not_null())
                     .col(ColumnDef::new(Model::Name).string().not_null())
                     .col(ColumnDef::new(Model::WebsiteUrl).string().not_null())
                     .col(ColumnDef::new(Model::DatasetName).string().not_null())
@@ -43,7 +37,6 @@ impl MigrationTrait for Migration {
 #[derive(DeriveIden)]
 enum Model {
     Table,
-    InternalId,
     Id,
     Name,
     WebsiteUrl,

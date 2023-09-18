@@ -31,8 +31,6 @@ pub struct Parameters {
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub internal_id: i32,
-    // To correspond to UI expectations
     pub id: String,
     pub name: String,
     pub website_url: String,

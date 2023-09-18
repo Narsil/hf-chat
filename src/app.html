@@ -14,6 +14,28 @@
 			// For some reason, Sveltekit doesn't let us load env variables from .env here, so we load it from hooks.server.ts
 			window.gaId = "%gaId%";
 			window.gaIdDeprecated = "%gaIdDeprecated%";
+
+            // Be sure to set `build.withGlobalTauri` in `tauri.conf.json` to true
+            // const invoke = window.__TAURI__.invoke
+
+            // const _fetch = window.fetch;
+
+            // window.fetchProxy = async (url, opts, ...args) => {
+            //     if ((url.startsWith(window.location.origin) || url.startsWith("/")) && url.includes("__data.json") && !url.includes("___TAURI_CHANNEL___")){
+            //         console.log(`Invoking ${url} ${JSON.stringify(opts)}`);
+            //         const content = await invoke("fetch", {url, opts});
+            //         return new Response(content);
+            //     }
+            //     else{
+            //         console.log(`Fetching ${url} ${JSON.stringify(opts)}`);
+            //         const result = await _fetch(url, opts, ...args);
+            //         return result;
+            //         // const value = await result.json();
+            //         // console.log(`Fetched ${JSON.stringify(value)}`);
+            //         // return new Response(JSON.stringify(value));
+            //     }
+            // };
+            // window.fetch = (...args) => window.fetchProxy(...args);
 		</script>
 		%sveltekit.head%
 	</head>

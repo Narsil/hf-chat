@@ -13,6 +13,7 @@
   },
   "tauri": {
     "bundle": {
+    
       "active": true,
       "category": "DeveloperTool",
       "copyright": "",
@@ -27,7 +28,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.huggingface.chat",
+      "identifier": "co.huggingface",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
