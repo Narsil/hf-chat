@@ -82,7 +82,7 @@ use model::ModelWeights;
 // }
 
 fn tokenizer() -> Result<Tokenizer, Error> {
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(super::cache()).build()?;
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let api = api.model("hf-internal-testing/llama-tokenizer".to_string());
     let tokenizer_path = api.get("tokenizer.json")?;
     Ok(Tokenizer::from_file(tokenizer_path)?)
@@ -97,7 +97,7 @@ fn get_model() -> Result<ModelWeights, Error> {
     //     "klosax/tinyllamas-stories-gguf",
     //     "tinyllamas-stories-260k-f32.gguf",
     // );
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(super::cache()).build()?;
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let api = api.model(repo.to_string());
     println!("Getting {filename}");
     let model_path = api.get(filename)?;

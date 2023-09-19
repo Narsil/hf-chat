@@ -177,7 +177,9 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "android_logger",
+ "byteorder",
  "candle-core",
+ "candle-nn",
  "candle-transformers",
  "chrono",
  "futures",

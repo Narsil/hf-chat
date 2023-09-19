@@ -39,6 +39,8 @@ openssl = { version = "0.10", features = ["vendored"] }
 android_logger = "0.13.3"
 tauri-plugin-fs = "2.0.0-alpha.2"
 uuid = { version = "1.4.1", features = ["v4"] }
+candle-nn = { path = "../../candle/candle-nn", package = "candle-nn"}
+byteorder = "1.4.3"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
@@ -49,3 +51,6 @@ custom-protocol = [ "tauri/custom-protocol" ]
 [[bin]]
 name = "migrate"
 path = "src/migrate.rs"
+
+[profile.dev]
+opt-level = 3

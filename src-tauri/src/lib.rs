@@ -20,7 +20,7 @@ pub mod migrations;
 use entities::conversation::{self, Model as Conversation};
 use entities::message::{self, Model as Message};
 use entities::model::{self, Model, Parameters};
-use local::load_local;
+use local::llama::load_local;
 use tracing::{debug, info};
 
 #[cfg(mobile)]
@@ -102,8 +102,8 @@ struct Load {
 async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
     let conversations = conversation::Entity::find().all(&state.db).await?;
     let models = model::Entity::find().all(&state.db).await?;
-    // let active_model = "meta-llama/Llama-2-7b-chat-hf".into();
-    let active_model = "tiiuae/falcon-180B-chat".into();
+    let active_model = "meta-llama/Llama-2-7b-chat-hf".into();
+    // let active_model = "tiiuae/falcon-180B-chat".into();
     let settings = Settings {
         share_conversations_with_model_authors: true,
         ethics_model_accepted_at: None,
@@ -327,11 +327,19 @@ fn query_local(
         stream: true,
     };
     tokio::task::spawn_blocking(move || {
-        let mut pipeline = load_local(query)?;
+        // if model == "karpathy/tinyllamas" {
+        let mut pipeline = crate::local::llama_c::load_local(query)?;
         for generation in pipeline.iter() {
             let generation = generation?;
             app.emit_all("text-generation", generation)?;
         }
+        // } else {
+        //     let mut pipeline = load_local(query)?;
+        //     for generation in pipeline.iter() {
+        //         let generation = generation?;
+        //         app.emit_all("text-generation", generation)?;
+        //     }
+        // };
         Ok::<(), Error>(())
     });
     Ok(())
