@@ -14,7 +14,6 @@ use candle_nn::linear_no_bias as linear;
 use candle_nn::{embedding, rms_norm, Embedding, Linear, Module, RmsNorm, VarBuilder};
 use candle_transformers::generation::LogitsProcessor;
 use std::collections::HashMap;
-use std::io::Write;
 use std::sync::{Arc, Mutex};
 use tokenizers::Tokenizer;
 
@@ -641,7 +640,7 @@ pub fn load_local(query: Query) -> Result<Pipeline, Error> {
     let tokenizer = tokenizer()?;
     let model = get_model()?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
-    let tokens: Vec<u32> = encoded.get_ids().iter().cloned().collect();
+    let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(
         0,
         Some(query.parameters.temperature as f64),

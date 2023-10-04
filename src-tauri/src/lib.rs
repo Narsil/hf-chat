@@ -7,7 +7,6 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Write;
 use tauri::App;
 use tauri::Manager;
 use uuid::Uuid;
@@ -20,6 +19,7 @@ pub mod migrations;
 use entities::conversation::{self, Model as Conversation};
 use entities::message::{self, Model as Message};
 use entities::model::{self, Model, Parameters};
+use entities::settings::{self, CustomPrompts, Model as Settings};
 use local::llama::load_local;
 use tracing::{debug, info};
 
@@ -53,6 +53,9 @@ pub enum Error {
 
     #[error(transparent)]
     Tokenizer(#[from] Box<dyn std::error::Error + Send + Sync>),
+
+    #[error("Model {0} was not found")]
+    ModelNotFound(String),
 }
 
 // we must manually implement serde::Serialize
@@ -78,16 +81,6 @@ struct State {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Settings {
-    share_conversations_with_model_authors: bool,
-    ethics_model_accepted_at: Option<bool>,
-    active_model: String,
-    search_enabled: bool,
-    custom_prompts: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct Load {
     conversations: Vec<Conversation>,
     settings: Settings,
@@ -99,17 +92,66 @@ struct Load {
 }
 
 #[tauri::command]
+async fn settings(state: tauri::State<'_, State>, settings: Settings) -> Result<(), Error> {
+    // Rename for naming sanity
+    let model_id = settings.active_model;
+    tracing::debug!("Inserting settings {model_id}");
+    let model: Option<model::Model> = model::Entity::find()
+        .filter(model::Column::Id.contains(model_id.clone()))
+        .order_by_asc(model::Column::Name)
+        .one(&state.db)
+        .await?;
+    let model = model.ok_or(Error::ModelNotFound(model_id))?;
+    tracing::debug!("Found in DB");
+    let mut settings: settings::ActiveModel = settings::Entity::find()
+        .one(&state.db)
+        .await?
+        .unwrap()
+        .into();
+    settings.active_model = Set(model.id);
+    // let settings = settings::ActiveModel {
+    //     id: Set(Uuid::new_v4()),
+    //     active_model: Set(active_model.into()),
+    //     share_conversations_with_model_authors: Set(true),
+    //     ethics_model_accepted_at: Set(None),
+    //     search_enabled: Set(false),
+    //     custom_prompts: Set(CustomPrompts {
+    //         prompts: HashMap::new(),
+    //     }),
+    // };
+
+    settings.update(&state.db).await.ok();
+    Ok(())
+}
+
+#[tauri::command]
 async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
     let conversations = conversation::Entity::find().all(&state.db).await?;
     let models = model::Entity::find().all(&state.db).await?;
-    let active_model = "meta-llama/Llama-2-7b-chat-hf".into();
     // let active_model = "tiiuae/falcon-180B-chat".into();
-    let settings = Settings {
-        share_conversations_with_model_authors: true,
-        ethics_model_accepted_at: None,
-        active_model,
-        search_enabled: false,
-        custom_prompts: HashMap::new(),
+    let settings = match settings::Entity::find().one(&state.db).await? {
+        Some(settings) => settings,
+        None => {
+            let active_model = &models[0].id;
+            let new_settings = settings::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                active_model: Set(active_model.into()),
+                share_conversations_with_model_authors: Set(true),
+                ethics_model_accepted_at: Set(None),
+                search_enabled: Set(false),
+                custom_prompts: Set(CustomPrompts {
+                    prompts: HashMap::new(),
+                }),
+            };
+
+            new_settings.insert(&state.db).await.ok();
+            // TODO fix this find last_insert_model
+            settings::Entity::find()
+                .one(&state.db)
+                .await
+                .unwrap()
+                .unwrap()
+        }
     };
     let token = cache().token();
     let load = Load {
@@ -135,6 +177,7 @@ fn cache() -> Cache {
         let cache = Cache::new(path.to_path_buf());
         let token_path = cache.token_path();
         if !token_path.exists() {
+            use std::io::Write;
             let mut file = std::fs::File::create(token_path).unwrap();
             file.write(b"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")
                 .unwrap();
@@ -158,14 +201,15 @@ async fn conversation(
 ) -> Result<ConversationResponse, Error> {
     // Rename for naming sanity
     let model_id = model;
-    let model: Vec<model::Model> = model::Entity::find()
-        .filter(model::Column::Id.contains(model_id))
+    let model: Option<model::Model> = model::Entity::find()
+        .filter(model::Column::Id.contains(model_id.clone()))
         .order_by_asc(model::Column::Name)
-        .all(&state.db)
+        .one(&state.db)
         .await?;
+    let model = model.ok_or(Error::ModelNotFound(model_id))?;
     let id = Uuid::new_v4();
     let conversation = conversation::ActiveModel {
-        model_id: Set(Some(model[0].id.clone())),
+        model_id: Set(Some(model.id.clone())),
         id: Set(id),
         title: Set("Conversation".into()),
         created_at: Set(chrono::Utc::now()),
@@ -255,7 +299,7 @@ fn build_llama_prompt(inputs: String) -> String {
 If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
 "#;
     format!(
-        r#"<s>[INST] <<SYS>>
+        r#"[INST] <<SYS>>
 {system_prompt}
 <</SYS>>
 
@@ -327,19 +371,19 @@ fn query_local(
         stream: true,
     };
     tokio::task::spawn_blocking(move || {
-        // if model == "karpathy/tinyllamas" {
-        let mut pipeline = crate::local::llama_c::load_local(query)?;
-        for generation in pipeline.iter() {
-            let generation = generation?;
-            app.emit_all("text-generation", generation)?;
-        }
-        // } else {
-        //     let mut pipeline = load_local(query)?;
-        //     for generation in pipeline.iter() {
-        //         let generation = generation?;
-        //         app.emit_all("text-generation", generation)?;
-        //     }
-        // };
+        if model == "karpathy/tinyllamas" {
+            let mut pipeline = crate::local::llama_c::load_local(query)?;
+            for generation in pipeline.iter() {
+                let generation = generation?;
+                app.emit_all("text-generation", generation)?;
+            }
+        } else {
+            let mut pipeline = load_local(query)?;
+            for generation in pipeline.iter() {
+                let generation = generation?;
+                app.emit_all("text-generation", generation)?;
+            }
+        };
         Ok::<(), Error>(())
     });
     Ok(())
@@ -383,7 +427,8 @@ async fn generate(
             // query_api(app, model, inputs, parameters, state.token.as_ref())
             query_local(app, model, inputs, parameters)
         }
-        model => todo!("Need to implement proper template {model}"),
+        "karpathy/tinyllamas" => query_local(app, model, inputs, parameters),
+        model => Err(Error::ModelNotFound(model.to_string())),
     }
 }
 
@@ -437,6 +482,13 @@ impl AppBuilder {
         android_logger::init_once(
             android_logger::Config::default().with_max_level(tracing::log::LevelFilter::Trace),
         );
+        println!(
+            "avx: {}, neon: {}, simd128: {}, f16c: {}",
+            candle::utils::with_avx(),
+            candle::utils::with_neon(),
+            candle::utils::with_simd128(),
+            candle::utils::with_f16c()
+        );
         tracing::info!("Start the db");
         let db = init_db().await.expect("Failed to create db");
         tracing::info!("get the token");
@@ -450,6 +502,7 @@ impl AppBuilder {
                 conversation,
                 load_conversation,
                 generate,
+                settings,
             ])
             .setup(move |app| {
                 if let Some(setup) = setup {

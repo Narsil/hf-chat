@@ -52,5 +52,13 @@ custom-protocol = [ "tauri/custom-protocol" ]
 name = "migrate"
 path = "src/migrate.rs"
 
+[profile.release]
+strip = true
+codegen-units = 1
+lto = "fat"
+
 [profile.dev]
+strip = true
+codegen-units = 1
+lto = "fat"
 opt-level = 3

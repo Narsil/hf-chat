@@ -46,7 +46,26 @@
 	<form
 		action="{base}/settings"
 		method="post"
-		on:submit={() => {
+		on:submit={(e) => {
+            const formData = new FormData(e.target)
+            const data = {};
+            for (let field of formData) {
+              let [key, value] = field;
+              try{
+                value = JSON.parse(value)
+              }catch(e){
+              }
+              if (value === ""){
+                  value = null;
+              }
+              
+              data[key] = value;
+            }
+            window.__TAURI__.invoke("settings", {settings: data});
+
+            console.log(data)
+            // TODO this is not smooth... at all !
+            window.location.reload();
 			if (expanded) {
 				onToggle();
 			}

@@ -18,8 +18,8 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Model::DatasetName).string().not_null())
                     .col(ColumnDef::new(Model::DisplayName).string().not_null())
                     .col(ColumnDef::new(Model::Description).string().not_null())
-                    .col(ColumnDef::new(Model::PromptExamples).string().not_null())
-                    .col(ColumnDef::new(Model::Parameters).string().not_null())
+                    .col(ColumnDef::new(Model::PromptExamples).json().not_null())
+                    .col(ColumnDef::new(Model::Parameters).json().not_null())
                     .col(ColumnDef::new(Model::Preprompt).string().not_null())
                     .to_owned(),
             )

@@ -192,7 +192,7 @@ pub fn load_local(query: Query) -> Result<Pipeline, Error> {
     let tokenizer = tokenizer()?;
     let model = get_model()?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
-    let tokens: Vec<u32> = encoded.get_ids().iter().cloned().collect();
+    let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(
         0,
         Some(query.parameters.temperature as f64),
@@ -236,7 +236,9 @@ impl<'a> PipelineIter<'a> {
                 .decode(self.tokens.as_slice(), false)
         );
         let input = Tensor::new(self.tokens.as_slice(), &Device::Cpu)?.unsqueeze(0)?;
+        tracing::debug!("input {:?}", input.shape());
         let logits = self.pipeline.model.forward(&input, 0)?;
+        tracing::debug!("Logits {:?}", logits.shape());
         let logits = logits.squeeze(0)?;
         let next_token = self.pipeline.logits_processor.sample(&logits)?;
         self.all_tokens.push(next_token);
