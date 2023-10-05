@@ -10,7 +10,7 @@ use candle_transformers::models::quantized_mixformer::MixFormerSequentialForCaus
 
 use candle::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{Repo, RepoType};
 use tokenizers::Tokenizer;
 
 // struct TextGeneration {

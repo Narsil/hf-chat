@@ -1,4 +1,4 @@
-#![allow(unused_variables)]
+#![allow(unused_variables, unused_imports)]
 use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
 use sea_orm::{
