@@ -218,7 +218,7 @@ impl Pipeline {
     pub fn iter(&mut self) -> PipelineIter {
         PipelineIter {
             tokens: self.tokens.clone(),
-            all_tokens: self.tokens.clone(),
+            all_tokens: vec![],
             pipeline: self,
             i: 0,
             last: false,
@@ -245,7 +245,10 @@ impl<'a> PipelineIter<'a> {
         let text = print_token(next_token, &self.pipeline.tokenizer);
 
         self.tokens = vec![next_token];
-        let generated_text = if self.i == self.pipeline.query.parameters.max_new_tokens {
+        let parameters = &self.pipeline.query.parameters;
+        let generated_text = if self.i == parameters.max_new_tokens
+            || parameters.stop.iter().any(|stop| text.starts_with(stop))
+        {
             Some(self.pipeline.tokenizer.decode(&self.all_tokens, true)?)
         } else {
             None

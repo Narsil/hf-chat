@@ -5,108 +5,102 @@ extern crate intel_mkl_src;
 extern crate accelerate_src;
 
 use crate::{Error, Generation, Query, Token};
-use candle_transformers::models::mixformer::{Config, MixFormerSequentialForCausalLM as MixFormer};
+use candle_transformers::models::mixformer::Config;
 use candle_transformers::models::quantized_mixformer::MixFormerSequentialForCausalLM as QMixFormer;
 
-use candle::{DType, Device, Tensor};
-use candle_nn::VarBuilder;
+use candle::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
 use hf_hub::{api::sync::Api, Repo, RepoType};
 use tokenizers::Tokenizer;
 
-enum Model {
-    MixFormer(MixFormer),
-    Quantized(QMixFormer),
-}
-
-struct TextGeneration {
-    model: Model,
-    device: Device,
-    tokenizer: Tokenizer,
-    logits_processor: LogitsProcessor,
-    repeat_penalty: f32,
-    repeat_last_n: usize,
-}
-
-impl TextGeneration {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        model: Model,
-        tokenizer: Tokenizer,
-        seed: u64,
-        temp: Option<f64>,
-        top_p: Option<f64>,
-        repeat_penalty: f32,
-        repeat_last_n: usize,
-        device: &Device,
-    ) -> Self {
-        let logits_processor = LogitsProcessor::new(seed, temp, top_p);
-        Self {
-            model,
-            tokenizer,
-            logits_processor,
-            repeat_penalty,
-            repeat_last_n,
-            device: device.clone(),
-        }
-    }
-
-    fn run(&mut self, prompt: &str, sample_len: usize) -> Result<()> {
-        use std::io::Write;
-        println!("starting the inference loop");
-        print!("{prompt}");
-        std::io::stdout().flush()?;
-        let mut tokens = self
-            .tokenizer
-            .encode(prompt, true)
-            .map_err(E::msg)?
-            .get_ids()
-            .to_vec();
-
-        let mut generated_tokens = 0usize;
-        let eos_token = match self.tokenizer.get_vocab(true).get("<|endoftext|>") {
-            Some(token) => *token,
-            None => anyhow::bail!("cannot find the endoftext token"),
-        };
-        let start_gen = std::time::Instant::now();
-        for index in 0..sample_len {
-            let context_size = if index > 0 { 1 } else { tokens.len() };
-            let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
-            let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
-            let logits = match &mut self.model {
-                Model::MixFormer(m) => m.forward(&input)?,
-                Model::Quantized(m) => m.forward(&input)?,
-            };
-            let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
-            let logits = if self.repeat_penalty == 1. {
-                logits
-            } else {
-                let start_at = tokens.len().saturating_sub(self.repeat_last_n);
-                candle_transformers::utils::apply_repeat_penalty(
-                    &logits,
-                    self.repeat_penalty,
-                    &tokens[start_at..],
-                )?
-            };
-
-            let next_token = self.logits_processor.sample(&logits)?;
-            tokens.push(next_token);
-            generated_tokens += 1;
-            if next_token == eos_token {
-                break;
-            }
-            let token = self.tokenizer.decode(&[next_token], true).map_err(E::msg)?;
-            print!("{token}");
-            std::io::stdout().flush()?;
-        }
-        let dt = start_gen.elapsed();
-        println!(
-            "\n{generated_tokens} tokens generated ({:.2} token/s)",
-            generated_tokens as f64 / dt.as_secs_f64(),
-        );
-        Ok(())
-    }
-}
+// struct TextGeneration {
+//     model: Model,
+//     device: Device,
+//     tokenizer: Tokenizer,
+//     logits_processor: LogitsProcessor,
+//     repeat_penalty: f32,
+//     repeat_last_n: usize,
+// }
+//
+// impl TextGeneration {
+//     #[allow(clippy::too_many_arguments)]
+//     fn new(
+//         model: Model,
+//         tokenizer: Tokenizer,
+//         seed: u64,
+//         temp: Option<f64>,
+//         top_p: Option<f64>,
+//         repeat_penalty: f32,
+//         repeat_last_n: usize,
+//         device: &Device,
+//     ) -> Self {
+//         let logits_processor = LogitsProcessor::new(seed, temp, top_p);
+//         Self {
+//             model,
+//             tokenizer,
+//             logits_processor,
+//             repeat_penalty,
+//             repeat_last_n,
+//             device: device.clone(),
+//         }
+//     }
+//
+//     fn run(&mut self, prompt: &str, sample_len: usize) -> Result<()> {
+//         use std::io::Write;
+//         println!("starting the inference loop");
+//         print!("{prompt}");
+//         std::io::stdout().flush()?;
+//         let mut tokens = self
+//             .tokenizer
+//             .encode(prompt, true)
+//             .map_err(E::msg)?
+//             .get_ids()
+//             .to_vec();
+//
+//         let mut generated_tokens = 0usize;
+//         let eos_token = match self.tokenizer.get_vocab(true).get("<|endoftext|>") {
+//             Some(token) => *token,
+//             None => anyhow::bail!("cannot find the endoftext token"),
+//         };
+//         let start_gen = std::time::Instant::now();
+//         for index in 0..sample_len {
+//             let context_size = if index > 0 { 1 } else { tokens.len() };
+//             let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
+//             let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+//             let logits = match &mut self.model {
+//                 Model::MixFormer(m) => m.forward(&input)?,
+//                 Model::Quantized(m) => m.forward(&input)?,
+//             };
+//             let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
+//             let logits = if self.repeat_penalty == 1. {
+//                 logits
+//             } else {
+//                 let start_at = tokens.len().saturating_sub(self.repeat_last_n);
+//                 candle_transformers::utils::apply_repeat_penalty(
+//                     &logits,
+//                     self.repeat_penalty,
+//                     &tokens[start_at..],
+//                 )?
+//             };
+//
+//             let next_token = self.logits_processor.sample(&logits)?;
+//             tokens.push(next_token);
+//             generated_tokens += 1;
+//             if next_token == eos_token {
+//                 break;
+//             }
+//             let token = self.tokenizer.decode(&[next_token], true).map_err(E::msg)?;
+//             print!("{token}");
+//             std::io::stdout().flush()?;
+//         }
+//         let dt = start_gen.elapsed();
+//         println!(
+//             "\n{generated_tokens} tokens generated ({:.2} token/s)",
+//             generated_tokens as f64 / dt.as_secs_f64(),
+//         );
+//         Ok(())
+//     }
+// }
 
 // #[derive(Parser, Debug)]
 // #[command(author, version, about, long_about = None)]
@@ -159,55 +153,24 @@ impl TextGeneration {
 //     repeat_last_n: usize,
 // }
 
-fn tokenizer() -> Result<Tokenizer, 
-
-fn main() -> Result<()> {
-    // use tracing_chrome::ChromeLayerBuilder;
-    // use tracing_subscriber::prelude::*;
-
-    // let args = Args::parse();
+fn tokenizer() -> Result<Tokenizer, Error> {
     let model_id = "microsoft/phi-1_5".to_string();
     let revision = "refs/pr/18".to_string();
+    let api = Api::new()?;
+    let repo = api.repo(Repo::with_revision(model_id, RepoType::Model, revision));
+    let tokenizer_filename = repo.get("tokenizer.json")?;
+    Ok(Tokenizer::from_file(tokenizer_filename)?)
+}
 
-    println!(
-        "avx: {}, neon: {}, simd128: {}, f16c: {}",
-        candle::utils::with_avx(),
-        candle::utils::with_neon(),
-        candle::utils::with_simd128(),
-        candle::utils::with_f16c()
-    );
-    println!(
-        "temp: {:.2} repeat-penalty: {:.2} repeat-last-n: {}",
-        args.temperature.unwrap_or(0.),
-        args.repeat_penalty,
-        args.repeat_last_n
-    );
-
-    let start = std::time::Instant::now();
+fn get_model() -> Result<QMixFormer, Error> {
+    let model_id = "lmz/candle-quantized-phi".to_string();
+    let api = Api::new()?;
+    let repo = api.repo(Repo::new(model_id, RepoType::Model));
+    let filename = repo.get("model-q4k.gguf")?;
     let config = Config::v1_5();
     let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(&filename)?;
     let model = QMixFormer::new(&config, vb)?;
-    let (model, device) = (Model::Quantized(model), Device::Cpu);
-    // } else {
-    //     let device = candle_examples::device(args.cpu)?;
-    //     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[filename], DType::F32, &device)? };
-    //     let model = MixFormer::new(&config, vb)?;
-    //     (Model::MixFormer(model), device)
-    // };
-    println!("loaded the model in {:?}", start.elapsed());
-
-    let mut pipeline = TextGeneration::new(
-        model,
-        tokenizer,
-        args.seed,
-        args.temperature,
-        args.top_p,
-        args.repeat_penalty,
-        args.repeat_last_n,
-        &device,
-    );
-    pipeline.run(&args.prompt, args.sample_len)?;
-    Ok(())
+    Ok(model)
 }
 
 pub fn load_local(query: Query) -> Result<Pipeline, Error> {
@@ -234,15 +197,24 @@ pub struct PipelineIter<'a> {
     all_tokens: Vec<u32>,
     i: usize,
     last: bool,
+    count: usize,
 }
 
+pub struct Pipeline {
+    model: QMixFormer,
+    tokenizer: Tokenizer,
+    query: Query,
+    tokens: Vec<u32>,
+    logits_processor: LogitsProcessor,
+}
 impl Pipeline {
     pub fn iter(&mut self) -> PipelineIter {
         PipelineIter {
             tokens: self.tokens.clone(),
-            all_tokens: self.tokens.clone(),
+            all_tokens: vec![],
             pipeline: self,
             i: 0,
+            count: 0,
             last: false,
         }
     }
@@ -258,7 +230,7 @@ impl<'a> PipelineIter<'a> {
         //         .decode(self.tokens.as_slice(), false)
         // );
         let input = Tensor::new(self.tokens.as_slice(), &Device::Cpu)?.unsqueeze(0)?;
-        let logits = self.pipeline.model.forward(&input, 0)?;
+        let logits = self.pipeline.model.forward(&input)?;
 
         // Once for batch size
         let logits = logits.squeeze(0)?;
@@ -268,10 +240,26 @@ impl<'a> PipelineIter<'a> {
         let next_token = self.pipeline.logits_processor.sample(&logits)?;
         self.all_tokens.push(next_token);
         let text = print_token(next_token, &self.pipeline.tokenizer);
-        self.all_tokens.push(next_token);
+        if text == "\n" {
+            self.count += 1;
+        } else {
+            self.count = 1;
+        }
+
+        let mut stop = false;
+        if self.count == 3 {
+            // 3  means 1 for having actual text, and + 2 for newlines
+            stop = true;
+        }
+        let parameters = &self.pipeline.query.parameters;
+        if self.i == parameters.max_new_tokens {
+            stop = true;
+        }
 
         self.tokens = vec![next_token];
-        let generated_text = if self.i == self.pipeline.query.parameters.max_new_tokens {
+        let generated_text = if stop
+        // || parameters.stop.iter().any(|stop| text.starts_with(stop))
+        {
             Some(self.pipeline.tokenizer.decode(&self.all_tokens, true)?)
         } else {
             None
@@ -306,4 +294,8 @@ impl<'a> Iterator for PipelineIter<'a> {
             Some(generation)
         }
     }
+}
+
+fn print_token(next_token: u32, tokenizer: &Tokenizer) -> String {
+    tokenizer.decode(&[next_token], true).unwrap()
 }

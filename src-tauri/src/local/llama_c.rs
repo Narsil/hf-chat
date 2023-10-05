@@ -666,7 +666,7 @@ impl Pipeline {
     pub fn iter(&mut self) -> PipelineIter {
         PipelineIter {
             tokens: self.tokens.clone(),
-            all_tokens: self.tokens.clone(),
+            all_tokens: vec![],
             pipeline: self,
             i: 0,
             last: false,
@@ -694,7 +694,7 @@ impl<'a> PipelineIter<'a> {
         let next_token = self.pipeline.logits_processor.sample(&logits)?;
         self.all_tokens.push(next_token);
         let text = print_token(next_token, &self.pipeline.tokenizer);
-        self.all_tokens.push(next_token);
+        tracing::info!("Text: {text}");
 
         self.tokens = vec![next_token];
         let generated_text = if self.i == self.pipeline.query.parameters.max_new_tokens {

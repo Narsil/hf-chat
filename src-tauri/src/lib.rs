@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::App;
 use tauri::Manager;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use hf_hub::Cache;
@@ -77,6 +78,7 @@ impl serde::Serialize for Error {
 struct State {
     db: DatabaseConnection,
     token: Option<String>,
+    tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -357,8 +359,9 @@ fn query_api(
     Ok(())
 }
 
-fn query_local(
+async fn query_local(
     app: tauri::AppHandle,
+    state: tauri::State<'_, State>,
     model: String,
     inputs: String,
     parameters: Parameters,
@@ -370,23 +373,62 @@ fn query_local(
         parameters,
         stream: true,
     };
+    let (newtx, mut rx) = tokio::sync::oneshot::channel();
     tokio::task::spawn_blocking(move || {
         if model == "karpathy/tinyllamas" {
             let mut pipeline = crate::local::llama_c::load_local(query)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
                 app.emit_all("text-generation", generation)?;
+                if let Ok(_) = rx.try_recv() {
+                    break;
+                }
+            }
+        } else if model == "microsoft/phi-1_5" {
+            let mut pipeline = crate::local::phi::load_local(query)?;
+            for generation in pipeline.iter() {
+                let generation = generation?;
+                app.emit_all("text-generation", generation)?;
+                if let Ok(_) = rx.try_recv() {
+                    break;
+                }
             }
         } else {
             let mut pipeline = load_local(query)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
                 app.emit_all("text-generation", generation)?;
+                if let Ok(_) = rx.try_recv() {
+                    break;
+                }
             }
         };
         Ok::<(), Error>(())
     });
+    let mut tx = state.tx.lock().await;
+    let tmptx = (*tx).take();
+    if let Some(tx) = tmptx {
+        tx.send(()).unwrap();
+    }
+    *tx = Some(newtx);
     Ok(())
+}
+
+#[tauri::command]
+async fn stop(state: tauri::State<'_, State>) -> Result<(), Error> {
+    tracing::info!("STOP");
+    let mut tx = state.tx.lock().await;
+    let tmptx = (*tx).take();
+    if let Some(tx) = tmptx {
+        tx.send(()).unwrap();
+    }
+    Ok(())
+
+    // if let Some(tx) = *tx {
+    //     Ok(tx.send(()).unwrap())
+    // } else {
+    //     Ok(())
+    // }
 }
 
 #[tauri::command]
@@ -425,9 +467,10 @@ async fn generate(
         "meta-llama/Llama-2-7b-chat-hf" => {
             let inputs = build_llama_prompt(inputs);
             // query_api(app, model, inputs, parameters, state.token.as_ref())
-            query_local(app, model, inputs, parameters)
+            query_local(app, state, model, inputs, parameters).await
         }
-        "karpathy/tinyllamas" => query_local(app, model, inputs, parameters),
+        "karpathy/tinyllamas" => query_local(app, state, model, inputs, parameters).await,
+        "microsoft/phi-1_5" => query_local(app, state, model, inputs, parameters).await,
         model => Err(Error::ModelNotFound(model.to_string())),
     }
 }
@@ -454,7 +497,7 @@ async fn init_db() -> Result<DatabaseConnection, Error> {
     let filename = format!("sqlite:{}", path.display());
     let db = Database::connect(filename).await?;
     migrations::Migrator::up(&db, None).await?;
-    debug!("Ran migrations");
+    info!("Ran migrations");
     Ok(db)
 }
 
@@ -496,12 +539,17 @@ impl AppBuilder {
 
         tauri::Builder::default()
             .plugin(tauri_plugin_fs::init())
-            .manage(State { db, token })
+            .manage(State {
+                db,
+                token,
+                tx: Mutex::new(None),
+            })
             .invoke_handler(tauri::generate_handler![
                 load,
                 conversation,
                 load_conversation,
                 generate,
+                stop,
                 settings,
             ])
             .setup(move |app| {
