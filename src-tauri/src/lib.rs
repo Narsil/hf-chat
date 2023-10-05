@@ -180,7 +180,7 @@ fn cache() -> Cache {
         if !token_path.exists() {
             use std::io::Write;
             let mut file = std::fs::File::create(token_path).unwrap();
-            file.write(b"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")
+            file.write(b"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")
                 .unwrap();
         }
         cache
