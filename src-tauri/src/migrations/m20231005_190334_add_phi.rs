@@ -66,8 +66,10 @@ impl ActiveModelBehavior for ActiveModel {}
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let db = manager.get_connection();
-        ActiveModel {
+        #[cfg(not(mobile))]
+        {
+            let db = manager.get_connection();
+            ActiveModel {
             id: Set("microsoft/phi-1_5".into()),
             name: Set("microsoft/phi-1_5".into()),
             parameters: Set(Parameters {
@@ -98,17 +100,22 @@ impl MigrationTrait for Migration {
         .insert(db)
         .await
         .ok();
+        }
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
-        let tinyllama: Option<Model> = Entity::find()
-            .filter(Column::Id.eq("karpathy/tinyllamas".to_string()))
-            .one(db)
-            .await?;
-        if let Some(tinyllama) = tinyllama {
-            tinyllama.delete(db).await?;
+
+        #[cfg(not(mobile))]
+        {
+            let tinyllama: Option<Model> = Entity::find()
+                .filter(Column::Id.eq("karpathy/tinyllamas".to_string()))
+                .one(db)
+                .await?;
+            if let Some(tinyllama) = tinyllama {
+                tinyllama.delete(db).await?;
+            }
         }
         Ok(())
     }
