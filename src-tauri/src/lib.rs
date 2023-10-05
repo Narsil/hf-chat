@@ -173,8 +173,7 @@ fn cache() -> Cache {
     let cache = Cache::default();
     #[cfg(mobile)]
     let cache = {
-        let path = std::path::Path::new("/data/data/co.app/cache/");
-        println!("Creating cache {}", path.display());
+        let path = std::path::Path::new("/data/data/co.huggingface.chat/cache/");
         std::fs::create_dir_all(path).expect("Could not create dir");
         let cache = Cache::new(path.to_path_buf());
         let token_path = cache.token_path();
@@ -184,7 +183,6 @@ fn cache() -> Cache {
             file.write(b"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")
                 .unwrap();
         }
-        println!("Created cache {}", path.display());
         cache
     };
     cache

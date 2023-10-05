@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">hf-chat</string>
-    <string name="main_activity_title">hf-chat</string>
+    <string name="app_name">chat</string>
+    <string name="main_activity_title">chat</string>
 </resources>

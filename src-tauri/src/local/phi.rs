@@ -156,7 +156,7 @@ use tokenizers::Tokenizer;
 fn tokenizer() -> Result<Tokenizer, Error> {
     let model_id = "microsoft/phi-1_5".to_string();
     let revision = "refs/pr/18".to_string();
-    let api = Api::new()?;
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let repo = api.repo(Repo::with_revision(model_id, RepoType::Model, revision));
     let tokenizer_filename = repo.get("tokenizer.json")?;
     Ok(Tokenizer::from_file(tokenizer_filename)?)
@@ -164,9 +164,11 @@ fn tokenizer() -> Result<Tokenizer, Error> {
 
 fn get_model() -> Result<QMixFormer, Error> {
     let model_id = "lmz/candle-quantized-phi".to_string();
-    let api = Api::new()?;
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let repo = api.repo(Repo::new(model_id, RepoType::Model));
+    println!("Getting phi model");
     let filename = repo.get("model-q4k.gguf")?;
+    println!("Got phi model");
     let config = Config::v1_5();
     let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(&filename)?;
     let model = QMixFormer::new(&config, vb)?;

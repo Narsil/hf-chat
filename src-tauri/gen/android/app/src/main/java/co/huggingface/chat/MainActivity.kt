@@ -1,3 +1,3 @@
-package co.app
+package co.huggingface.chat
 
 class MainActivity : TauriActivity()
