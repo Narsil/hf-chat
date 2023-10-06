@@ -1,11 +1,11 @@
 [package]
-name = "app"
+name = "chat"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
 repository = ""
-default-run = "app"
+default-run = "chat"
 edition = "2021"
 rust-version = "1.60"
 
@@ -32,13 +32,13 @@ tracing-subscriber = "0.3.17"
 reqwest = "0.11.20"
 futures-util = "0.3.28"
 tokenizers = "0.14.0"
-candle = { version = "0.2.0", package = "candle-core"}
-candle-transformers = { version = "0.2.0", package = "candle-transformers" }
+candle = { version = "0.3.0", package = "candle-core"}
+candle-transformers = { version = "0.3.0", package = "candle-transformers" }
+candle-nn = { version = "0.3.0", package = "candle-nn"}
 openssl = { version = "0.10", features = ["vendored"] }
 android_logger = "0.13.3"
 tauri-plugin-fs = "2.0.0-alpha.2"
 uuid = { version = "1.4.1", features = ["v4"] }
-candle-nn = { version = "0.2.0", package = "candle-nn"}
 byteorder = "1.4.3"
 hf-hub = { version = "0.3.2" }
 
@@ -59,6 +59,6 @@ lto = "fat"
 
 [profile.dev]
 strip = true
-codegen-units = 1
-lto = "fat"
+# codegen-units = 1
+# lto = "fat"
 opt-level = 3

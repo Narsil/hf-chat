@@ -74,6 +74,9 @@
                 }
         });
 
+        console.log(data.models, data.model);
+        console.log(data.models.find((m) => m.id === data.model));
+
 		await invoke("generate",
 			{
 				model: data.model,
@@ -115,17 +118,20 @@
 			}
 
 			if (conversationId !== $page.params.id) {
-				fetch(`${base}/conversation/${conversationId}/stop-generating`, {
-					method: "POST",
-				}).catch(console.error);
+                await invoke("stop");
+				// fetch(`${base}/conversation/${conversationId}/stop-generating`, {
+				// 	method: "POST",
+				// }).catch(console.error);
                 break;
 			}
 
 			if (isAborted) {
 				isAborted = false;
-				fetch(`${base}/conversation/${conversationId}/stop-generating`, {
-					method: "POST",
-				}).catch(console.error);
+                console.log("STOP");
+                await invoke("stop");
+				// fetch(`${base}/conversation/${conversationId}/stop-generating`, {
+				// 	method: "POST",
+				// }).catch(console.error);
                 break;
 			}
 
@@ -329,7 +335,9 @@
 	on:retry={(event) => writeMessage(event.detail.content, event.detail.id)}
 	on:vote={(event) => voteMessage(event.detail.score, event.detail.id)}
 	on:share={() => shareConversation($page.params.id, data.title)}
-	on:stop={() => (isAborted = true)}
+    on:stop={async () => {
+        isAborted = true;
+    }}
 	models={data.models}
 	currentModel={findCurrentModel([...data.models, ...data.oldModels], data.model)}
 	settings={data.settings}

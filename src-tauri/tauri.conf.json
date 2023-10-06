@@ -28,7 +28,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "co.huggingface",
+      "identifier": "co.huggingface.chat",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
