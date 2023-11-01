@@ -61,7 +61,7 @@
               
               data[key] = value;
             }
-            window.__TAURI__.invoke("settings", {settings: data});
+            window.__TAURI__.primitives.invoke("settings", {settings: data});
 
             console.log(data)
             // TODO this is not smooth... at all !

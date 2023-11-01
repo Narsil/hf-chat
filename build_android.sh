@@ -14,3 +14,5 @@ export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 export PATH=$PATH:$TOOLCHAIN/bin
 
 pnpm tauri android build
+echo "Signing aab"
+jarsigner -keystore store.jks src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab  hf-chat

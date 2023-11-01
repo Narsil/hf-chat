@@ -5,7 +5,7 @@
 	import { ERROR_MESSAGES, error } from "$lib/stores/errors";
 	import { pendingMessage } from "$lib/stores/pendingMessage";
 	import { findCurrentModel } from "$lib/utils/models";
-    import { invoke } from '@tauri-apps/api/tauri'
+    import { invoke } from '@tauri-apps/api/primitives'
 
 	export let data;
 	let loading = false;

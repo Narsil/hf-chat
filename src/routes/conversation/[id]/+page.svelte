@@ -16,7 +16,7 @@
 	import type { WebSearchMessage } from "$lib/types/WebSearch";
 	import type { Message } from "$lib/types/Message";
 	import { PUBLIC_APP_DISCLAIMER } from "$env/static/public";
-    import { invoke } from '@tauri-apps/api'
+    import { invoke } from '@tauri-apps/api/primitives'
     import { listen } from '@tauri-apps/api/event'
 
 	export let data;

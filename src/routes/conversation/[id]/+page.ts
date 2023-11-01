@@ -1,6 +1,6 @@
 export const prerender = false
 export const ssr = false
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/primitives'
 
 
 export const load = async ({ params, depends, url }) => {

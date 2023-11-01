@@ -12,8 +12,8 @@ android {
         applicationId = "co.huggingface.chat"
         minSdk = 24
         targetSdk = 33
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
     }
     buildTypes {
         getByName("debug") {

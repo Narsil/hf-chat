@@ -16,7 +16,7 @@
 			window.gaIdDeprecated = "%gaIdDeprecated%";
 
             // Be sure to set `build.withGlobalTauri` in `tauri.conf.json` to true
-            const invoke = window.__TAURI__.invoke
+            const invoke = window.__TAURI__.primitives.invoke
 
             const _fetch = window.fetch;
 
