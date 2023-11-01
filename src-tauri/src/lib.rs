@@ -352,7 +352,7 @@ fn query_api(
                 message.insert(&db).await.ok();
             }
 
-            app.emit_all("text-generation", generation)?;
+            app.emit("text-generation", generation)?;
         }
         Ok::<(), Error>(())
     });
@@ -379,7 +379,7 @@ async fn query_local(
             let mut pipeline = crate::local::llama_c::load_local(query)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
-                app.emit_all("text-generation", generation)?;
+                app.emit("text-generation", generation)?;
                 if let Ok(_) = rx.try_recv() {
                     break;
                 }
@@ -388,7 +388,7 @@ async fn query_local(
             let mut pipeline = crate::local::phi::load_local(query)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
-                app.emit_all("text-generation", generation)?;
+                app.emit("text-generation", generation)?;
                 if let Ok(_) = rx.try_recv() {
                     break;
                 }
@@ -397,7 +397,7 @@ async fn query_local(
             let mut pipeline = load_local(query)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
-                app.emit_all("text-generation", generation)?;
+                app.emit("text-generation", generation)?;
                 if let Ok(_) = rx.try_recv() {
                     break;
                 }
