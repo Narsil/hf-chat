@@ -29,6 +29,9 @@
         "icons/icon.ico"
       ],
       "identifier": "co.huggingface.chat",
+      "iOS": {
+          "developmentTeam": "2EADP68M95"
+      },
       "longDescription": "",
       "macOS": {
         "entitlements": null,

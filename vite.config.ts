@@ -3,21 +3,25 @@ import { defineConfig } from 'vite'
 import { internalIpV4 } from 'internal-ip'
 import Icons from "unplugin-icons/vite";
 
+// @ts-expect-error process is a nodejs global
+const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
+
 export default defineConfig(async () => {
-    const host = await internalIpV4();
 
     /** @type {import('vite').UserConfig} */
     const config = {
-        // server: {
-        //     host: '0.0.0.0', // listen on all addresses
-        //     port: 5173,
-        //     strictPort: true,
-        //     hmr: {
-        //         protocol: 'ws',
-        //         host: '10.101.3.207',
-        //         port: 5183,
-        //     },
-        // },
+        server: {
+          port: 5173,
+          strictPort: true,
+          host: mobile ? "0.0.0.0" : false,
+          hmr: mobile
+            ? {
+                protocol: "ws",
+                host: await internalIpV4(),
+                port: 5183,
+              }
+            : undefined,
+        },
         plugins: [
             sveltekit(),
             Icons({ compiler: "svelte" })
