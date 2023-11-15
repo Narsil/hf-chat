@@ -12,6 +12,7 @@ use candle::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
 use hf_hub::{Repo, RepoType};
 use tokenizers::Tokenizer;
+use tracing::info;
 
 // struct TextGeneration {
 //     model: Model,
@@ -47,7 +48,7 @@ use tokenizers::Tokenizer;
 //
 //     fn run(&mut self, prompt: &str, sample_len: usize) -> Result<()> {
 //         use std::io::Write;
-//         println!("starting the inference loop");
+//         info!("starting the inference loop");
 //         print!("{prompt}");
 //         std::io::stdout().flush()?;
 //         let mut tokens = self
@@ -94,7 +95,7 @@ use tokenizers::Tokenizer;
 //             std::io::stdout().flush()?;
 //         }
 //         let dt = start_gen.elapsed();
-//         println!(
+//         info!(
 //             "\n{generated_tokens} tokens generated ({:.2} token/s)",
 //             generated_tokens as f64 / dt.as_secs_f64(),
 //         );
@@ -166,9 +167,9 @@ fn get_model() -> Result<QMixFormer, Error> {
     let model_id = "lmz/candle-quantized-phi".to_string();
     let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let repo = api.repo(Repo::new(model_id, RepoType::Model));
-    println!("Getting phi model");
+    info!("Getting phi model");
     let filename = repo.get("model-q4k.gguf")?;
-    println!("Got phi model");
+    info!("Got phi model");
     let config = Config::v1_5();
     let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(&filename)?;
     let model = QMixFormer::new(&config, vb)?;

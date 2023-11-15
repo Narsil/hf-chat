@@ -16,6 +16,7 @@ use candle_transformers::generation::LogitsProcessor;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokenizers::Tokenizer;
+use tracing::info;
 
 // #[derive(Parser, Debug)]
 // #[command(author, version, about, long_about = None)]
@@ -51,7 +52,7 @@ fn tokenizer() -> Result<Tokenizer, Error> {
 fn get_model() -> Result<Llama, Error> {
     let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let (repo, filename) = ("karpathy/tinyllamas", "stories15M.bin");
-    println!("loading the model weights from {}", repo);
+    info!("loading the model weights from {}", repo);
     let api = api.model(repo.into());
     let model_path = api.get(filename)?;
 
@@ -66,7 +67,7 @@ fn get_model() -> Result<Llama, Error> {
     } else {
         let mut file = std::fs::File::open(model_path)?;
         let config = Config::from_reader(&mut file)?;
-        println!("{config:?}");
+        info!("{config:?}");
         let weights = TransformerWeights::from_reader(&mut file, &config, &device)?;
         let vb = weights.var_builder(&config, &device)?;
         (vb, config)
@@ -560,7 +561,7 @@ pub struct Pipeline {
     tokens: Vec<u32>,
     logits_processor: LogitsProcessor,
 }
-// println!("starting the inference loop");
+// info!("starting the inference loop");
 // let mut logits_processor = LogitsProcessor::new(299792458, args.temperature, args.top_p);
 // let mut index_pos = 0;
 
@@ -604,7 +605,7 @@ pub struct Pipeline {
 //     }
 // }
 // let dt = start_gen.elapsed();
-// println!(
+// info!(
 //     "\n{} tokens generated ({:.2} token/s)\n",
 //     tokens.len(),
 //     tokens.len() as f64 / dt.as_secs_f64(),

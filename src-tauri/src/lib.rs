@@ -324,7 +324,7 @@ fn query_api(
     };
     let client = reqwest::Client::new();
     let mut request = client.post(url).json(&query).header("x-use-cache", "0");
-    println!("Sending token {token:?}");
+    info!("Sending token {token:?}");
     if let Some(token) = token {
         request = request.header(AUTHORIZATION, format!("Bearer {token}"));
     }
@@ -333,11 +333,11 @@ fn query_api(
         let mut stream = request.send().await?.bytes_stream();
 
         while let Some(item) = stream.next().await {
-            println!("Received items {item:?}");
+            info!("Received items {item:?}");
             let item = item?;
             let chunk = &item["data:".len()..];
             let generation: Generation = serde_json::from_slice(chunk)?;
-            // println!("Chunk: {:?}", generation);
+            // info!("Chunk: {:?}", generation);
             // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             if let Some(generated_text) = &generation.generated_text {
                 let message = message::ActiveModel {
@@ -454,7 +454,7 @@ async fn generate(
     message.insert(&state.db).await.ok();
     match &model[..] {
         "tiiuae/falcon-180B-chat" => {
-            println!("New falcon message");
+            info!("New falcon message");
             let inputs = build_falcon_prompt(inputs);
             query_api(
                 app,
@@ -518,7 +518,7 @@ impl AppBuilder {
 
     pub async fn run(self) {
         let setup = self.setup;
-        println!("Start the run");
+        info!("Start the run");
         tracing_subscriber::fmt::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .init();
@@ -526,7 +526,7 @@ impl AppBuilder {
         android_logger::init_once(
             android_logger::Config::default().with_max_level(tracing::log::LevelFilter::Trace),
         );
-        println!(
+        info!(
             "avx: {}, neon: {}, simd128: {}, f16c: {}",
             candle::utils::with_avx(),
             candle::utils::with_neon(),

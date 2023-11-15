@@ -12,6 +12,7 @@ use candle::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
 
 use candle_transformers::models::quantized_llama as model;
+use tracing::info;
 use model::ModelWeights;
 
 // const DEFAULT_PROMPT: &str = "My favorite theorem is ";
@@ -99,9 +100,9 @@ fn get_model() -> Result<ModelWeights, Error> {
     // );
     let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let api = api.model(repo.to_string());
-    println!("Getting {filename}");
+    info!("Getting {filename}");
     let model_path = api.get(filename)?;
-    println!("Got {filename}");
+    info!("Got {filename}");
     let start = std::time::Instant::now();
     let mut file = std::fs::File::open(&model_path)?;
     let model: ModelWeights = match model_path.extension().and_then(|v| v.to_str()) {
@@ -113,7 +114,7 @@ fn get_model() -> Result<ModelWeights, Error> {
                 total_size_in_bytes +=
                     elem_count * tensor.ggml_dtype.type_size() / tensor.ggml_dtype.blck_size();
             }
-            println!(
+            info!(
                 "loaded {:?} tensors ({}) in {:.2}s",
                 model.tensor_infos.len(),
                 &format_size(total_size_in_bytes),
@@ -129,13 +130,13 @@ fn get_model() -> Result<ModelWeights, Error> {
                 total_size_in_bytes +=
                     elem_count * tensor.dtype().type_size() / tensor.dtype().blck_size();
             }
-            println!(
+            info!(
                 "loaded {:?} tensors ({}) in {:.2}s",
                 model.tensors.len(),
                 &format_size(total_size_in_bytes),
                 start.elapsed().as_secs_f32(),
             );
-            println!("params: {:?}", model.hparams);
+            info!("params: {:?}", model.hparams);
             let default_gqa = 1;
             ModelWeights::from_ggml(model, default_gqa)?
         }
@@ -303,14 +304,14 @@ impl<'a> Iterator for PipelineIter<'a> {
 //     //     None
 //     // };
 //
-//     println!(
+//     info!(
 //         "avx: {}, neon: {}, simd128: {}, f16c: {}",
 //         candle::utils::with_avx(),
 //         candle::utils::with_neon(),
 //         candle::utils::with_simd128(),
 //         candle::utils::with_f16c()
 //     );
-//     // println!(
+//     // info!(
 //     //     "temp: {:.2} repeat-penalty: {:.2} repeat-last-n: {}",
 //     //     args.temperature, args.repeat_penalty, args.repeat_last_n
 //     // );
@@ -342,7 +343,7 @@ impl<'a> Iterator for PipelineIter<'a> {
 //         if args.verbose_prompt {
 //             for (token, id) in tokens.get_tokens().iter().zip(tokens.get_ids().iter()) {
 //                 let token = token.replace('▁', " ").replace("<0x0A>", "\n");
-//                 println!("{id:7} -> '{token}'");
+//                 info!("{id:7} -> '{token}'");
 //             }
 //         }
 //
@@ -388,12 +389,12 @@ impl<'a> Iterator for PipelineIter<'a> {
 //             print_token(next_token, &tokenizer);
 //         }
 //         let dt = start_post_prompt.elapsed();
-//         println!(
+//         info!(
 //             "\n\n{:4} prompt tokens processed: {:.2} token/s",
 //             prompt_tokens.len(),
 //             prompt_tokens.len() as f64 / prompt_dt.as_secs_f64(),
 //         );
-//         println!(
+//         info!(
 //             "{:4} tokens generated: {:.2} token/s",
 //             to_sample,
 //             to_sample as f64 / dt.as_secs_f64(),
