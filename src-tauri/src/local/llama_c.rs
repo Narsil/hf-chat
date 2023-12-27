@@ -49,13 +49,11 @@ fn tokenizer(api: &Api) -> Result<Tokenizer, Error> {
     Ok(Tokenizer::from_file(tokenizer_path)?)
 }
 
-fn get_model(api: &Api) -> Result<Llama, Error> {
+fn get_model(api: &Api, device: &Device) -> Result<Llama, Error> {
     let (repo, filename) = ("karpathy/tinyllamas", "stories15M.bin");
     info!("loading the model weights from {}", repo);
     let api = api.model(repo.into());
     let model_path = api.get(filename)?;
-
-    let device = Device::Cpu;
 
     let is_safetensors = model_path.extension().map_or(false, |v| v == "safetensors");
     let (vb, config) = if is_safetensors {
@@ -556,6 +554,7 @@ impl TransformerWeights {
 pub struct Pipeline {
     model: Llama,
     tokenizer: Tokenizer,
+    device: Device,
     query: Query,
     tokens: Vec<u32>,
     logits_processor: LogitsProcessor,
@@ -636,10 +635,10 @@ fn print_token(next_token: u32, tokenizer: &Tokenizer) -> String {
     "".into()
 }
 
-pub fn load_local(query: Query, cache: &HfCache) -> Result<Pipeline, Error> {
+pub fn load_local(query: Query, device: Device, cache: &HfCache) -> Result<Pipeline, Error> {
     let api = hf_hub::api::sync::ApiBuilder::from_cache(cache.clone()).build()?;
     let tokenizer = tokenizer(&api)?;
-    let model = get_model(&api)?;
+    let model = get_model(&api, &device)?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
     let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(
@@ -651,6 +650,7 @@ pub fn load_local(query: Query, cache: &HfCache) -> Result<Pipeline, Error> {
         model,
         tokenizer,
         query,
+        device,
         logits_processor,
         tokens: tokens.to_vec(),
     })
@@ -684,7 +684,7 @@ impl<'a> PipelineIter<'a> {
         //         .tokenizer
         //         .decode(self.tokens.as_slice(), false)
         // );
-        let input = Tensor::new(self.tokens.as_slice(), &Device::Cpu)?.unsqueeze(0)?;
+        let input = Tensor::new(self.tokens.as_slice(), &self.pipeline.device)?.unsqueeze(0)?;
         let logits = self.pipeline.model.forward(&input, 0)?;
 
         // Once for batch size

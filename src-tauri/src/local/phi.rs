@@ -15,146 +15,6 @@ use hf_hub::{Repo, RepoType};
 use tokenizers::Tokenizer;
 use tracing::info;
 
-// struct TextGeneration {
-//     model: Model,
-//     device: Device,
-//     tokenizer: Tokenizer,
-//     logits_processor: LogitsProcessor,
-//     repeat_penalty: f32,
-//     repeat_last_n: usize,
-// }
-//
-// impl TextGeneration {
-//     #[allow(clippy::too_many_arguments)]
-//     fn new(
-//         model: Model,
-//         tokenizer: Tokenizer,
-//         seed: u64,
-//         temp: Option<f64>,
-//         top_p: Option<f64>,
-//         repeat_penalty: f32,
-//         repeat_last_n: usize,
-//         device: &Device,
-//     ) -> Self {
-//         let logits_processor = LogitsProcessor::new(seed, temp, top_p);
-//         Self {
-//             model,
-//             tokenizer,
-//             logits_processor,
-//             repeat_penalty,
-//             repeat_last_n,
-//             device: device.clone(),
-//         }
-//     }
-//
-//     fn run(&mut self, prompt: &str, sample_len: usize) -> Result<()> {
-//         use std::io::Write;
-//         info!("starting the inference loop");
-//         print!("{prompt}");
-//         std::io::stdout().flush()?;
-//         let mut tokens = self
-//             .tokenizer
-//             .encode(prompt, true)
-//             .map_err(E::msg)?
-//             .get_ids()
-//             .to_vec();
-//
-//         let mut generated_tokens = 0usize;
-//         let eos_token = match self.tokenizer.get_vocab(true).get("<|endoftext|>") {
-//             Some(token) => *token,
-//             None => anyhow::bail!("cannot find the endoftext token"),
-//         };
-//         let start_gen = std::time::Instant::now();
-//         for index in 0..sample_len {
-//             let context_size = if index > 0 { 1 } else { tokens.len() };
-//             let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
-//             let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
-//             let logits = match &mut self.model {
-//                 Model::MixFormer(m) => m.forward(&input)?,
-//                 Model::Quantized(m) => m.forward(&input)?,
-//             };
-//             let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
-//             let logits = if self.repeat_penalty == 1. {
-//                 logits
-//             } else {
-//                 let start_at = tokens.len().saturating_sub(self.repeat_last_n);
-//                 candle_transformers::utils::apply_repeat_penalty(
-//                     &logits,
-//                     self.repeat_penalty,
-//                     &tokens[start_at..],
-//                 )?
-//             };
-//
-//             let next_token = self.logits_processor.sample(&logits)?;
-//             tokens.push(next_token);
-//             generated_tokens += 1;
-//             if next_token == eos_token {
-//                 break;
-//             }
-//             let token = self.tokenizer.decode(&[next_token], true).map_err(E::msg)?;
-//             print!("{token}");
-//             std::io::stdout().flush()?;
-//         }
-//         let dt = start_gen.elapsed();
-//         info!(
-//             "\n{generated_tokens} tokens generated ({:.2} token/s)",
-//             generated_tokens as f64 / dt.as_secs_f64(),
-//         );
-//         Ok(())
-//     }
-// }
-
-// #[derive(Parser, Debug)]
-// #[command(author, version, about, long_about = None)]
-// struct Args {
-//     /// Run on CPU rather than on GPU.
-//     #[arg(long)]
-//     cpu: bool,
-//
-//     /// Enable tracing (generates a trace-timestamp.json file).
-//     #[arg(long)]
-//     tracing: bool,
-//
-//     #[arg(long)]
-//     prompt: String,
-//
-//     /// The temperature used to generate samples.
-//     #[arg(long)]
-//     temperature: Option<f64>,
-//
-//     /// Nucleus sampling probability cutoff.
-//     #[arg(long)]
-//     top_p: Option<f64>,
-//
-//     /// The seed to use when generating random samples.
-//     #[arg(long, default_value_t = 299792458)]
-//     seed: u64,
-//
-//     /// The length of the sample to generate (in tokens).
-//     #[arg(long, short = 'n', default_value_t = 100)]
-//     sample_len: usize,
-//
-//     #[arg(long, default_value = "microsoft/phi-1_5")]
-//     model_id: String,
-//
-//     #[arg(long, default_value = "refs/pr/18")]
-//     revision: String,
-//
-//     #[arg(long)]
-//     weight_file: Option<String>,
-//
-//     #[arg(long)]
-//     quantized: bool,
-//
-//     /// Penalty to be applied for repeating tokens, 1. means no penalty.
-//     #[arg(long, default_value_t = 1.1)]
-//     repeat_penalty: f32,
-//
-//     /// The context size to consider for the repeat penalty.
-//     #[arg(long, default_value_t = 64)]
-//     repeat_last_n: usize,
-// }
-
 fn tokenizer(api: &Api) -> Result<Tokenizer, Error> {
     let model_id = "microsoft/phi-1_5".to_string();
     let revision = "refs/pr/18".to_string();
@@ -175,7 +35,7 @@ fn get_model(api: &Api) -> Result<QMixFormer, Error> {
     Ok(model)
 }
 
-pub fn load_local(query: Query, cache: &Cache) -> Result<Pipeline, Error> {
+pub fn load_local(query: Query, device: Device, cache: &Cache) -> Result<Pipeline, Error> {
     let api = hf_hub::api::sync::ApiBuilder::from_cache(cache.clone()).build()?;
     let tokenizer = tokenizer(&api)?;
     let model = get_model(&api)?;
@@ -190,6 +50,7 @@ pub fn load_local(query: Query, cache: &Cache) -> Result<Pipeline, Error> {
         model,
         tokenizer,
         query,
+        device,
         logits_processor,
         tokens: tokens.to_vec(),
     })
@@ -206,6 +67,7 @@ pub struct PipelineIter<'a> {
 pub struct Pipeline {
     model: QMixFormer,
     tokenizer: Tokenizer,
+    device: Device,
     query: Query,
     tokens: Vec<u32>,
     logits_processor: LogitsProcessor,
@@ -232,7 +94,7 @@ impl<'a> PipelineIter<'a> {
         //         .tokenizer
         //         .decode(self.tokens.as_slice(), false)
         // );
-        let input = Tensor::new(self.tokens.as_slice(), &Device::Cpu)?.unsqueeze(0)?;
+        let input = Tensor::new(self.tokens.as_slice(), &self.pipeline.device)?.unsqueeze(0)?;
         let logits = self.pipeline.model.forward(&input)?;
 
         // Once for batch size

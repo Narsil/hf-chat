@@ -32,9 +32,9 @@ tracing-subscriber = "0.3.17"
 reqwest = "0.11.20"
 futures-util = "0.3.28"
 tokenizers = "0.14.0"
-candle = { version = "0.3.0", package = "candle-core"}
-candle-transformers = { version = "0.3.0", package = "candle-transformers" }
-candle-nn = { version = "0.3.0", package = "candle-nn"}
+candle = { git="https://github.com/huggingface/candle/", package = "candle-core", features= ["metal"] }
+candle-transformers = { git="https://github.com/huggingface/candle/", package = "candle-transformers", features= ["metal"] }
+candle-nn = { git="https://github.com/huggingface/candle/", package = "candle-nn", features= ["metal"] }
 openssl = { version = "0.10", features = ["vendored"] }
 android_logger = "0.13.3"
 tauri-plugin-fs = "2.0.0-alpha.2"

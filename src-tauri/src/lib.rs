@@ -1,3 +1,4 @@
+use candle::Device;
 use futures_util::StreamExt;
 use reqwest::header::AUTHORIZATION;
 use sea_orm::ActiveValue::Set;
@@ -80,6 +81,7 @@ impl serde::Serialize for Error {
 struct State {
     db: DatabaseConnection,
     cache: Cache,
+    device: Device,
     tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
@@ -372,9 +374,10 @@ async fn query_local(
     };
     let (newtx, mut rx) = tokio::sync::oneshot::channel();
     let cache = state.cache.clone();
+    let device = state.device.clone();
     tokio::task::spawn_blocking(move || {
         if model == "karpathy/tinyllamas" {
-            let mut pipeline = crate::local::llama_c::load_local(query, &cache)?;
+            let mut pipeline = crate::local::llama_c::load_local(query, device, &cache)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
                 app.emit("text-generation", generation)?;
@@ -383,7 +386,7 @@ async fn query_local(
                 }
             }
         } else if model == "microsoft/phi-1_5" {
-            let mut pipeline = crate::local::phi::load_local(query, &cache)?;
+            let mut pipeline = crate::local::phi::load_local(query, device, &cache)?;
             info!("Loaded pipeline");
             for generation in pipeline.iter() {
                 let generation = generation?;
@@ -394,7 +397,7 @@ async fn query_local(
                 }
             }
         } else {
-            let mut pipeline = crate::local::llama::load_local(query, &cache)?;
+            let mut pipeline = crate::local::llama::load_local(query, device, &cache)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
                 app.emit("text-generation", generation)?;
@@ -511,7 +514,6 @@ impl AppBuilder {
     }
 
     pub fn run(self) {
-        // let setup = self.setup;
         info!("Start the run");
         tracing_subscriber::fmt::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -543,10 +545,12 @@ impl AppBuilder {
                 let db = tauri::async_runtime::block_on(async {
                     init_db(&cache).await.expect("Failed to create db")
                 });
-                tracing::info!("get the token");
+                tracing::info!("get the device");
+                let device = Device::Cpu;
                 app.manage(State {
                     db,
                     cache,
+                    device,
                     tx: Mutex::new(None),
                 });
                 // if let Some(setup) = setup {
