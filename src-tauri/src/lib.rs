@@ -7,7 +7,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tauri::App;
+use std::path::Path;
 use tauri::Manager;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -21,8 +21,7 @@ use entities::conversation::{self, Model as Conversation};
 use entities::message::{self, Model as Message};
 use entities::model::{self, Model, Parameters};
 use entities::settings::{self, CustomPrompts, Model as Settings};
-use local::llama::load_local;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 #[cfg(mobile)]
 mod mobile;
@@ -53,6 +52,9 @@ pub enum Error {
     Candle(#[from] candle::Error),
 
     #[error(transparent)]
+    Lock(#[from] tokio::sync::TryLockError),
+
+    #[error(transparent)]
     Tokenizer(#[from] Box<dyn std::error::Error + Send + Sync>),
 
     #[error("Model {0} was not found")]
@@ -77,7 +79,7 @@ impl serde::Serialize for Error {
 
 struct State {
     db: DatabaseConnection,
-    token: Option<String>,
+    cache: Cache,
     tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
@@ -96,20 +98,18 @@ struct Load {
 #[tauri::command]
 async fn settings(state: tauri::State<'_, State>, settings: Settings) -> Result<(), Error> {
     // Rename for naming sanity
+    let db = &state.db;
     let model_id = settings.active_model;
     tracing::debug!("Inserting settings {model_id}");
     let model: Option<model::Model> = model::Entity::find()
         .filter(model::Column::Id.contains(model_id.clone()))
         .order_by_asc(model::Column::Name)
-        .one(&state.db)
+        .one(db)
         .await?;
     let model = model.ok_or(Error::ModelNotFound(model_id))?;
     tracing::debug!("Found in DB");
-    let mut settings: settings::ActiveModel = settings::Entity::find()
-        .one(&state.db)
-        .await?
-        .unwrap()
-        .into();
+    let mut settings: settings::ActiveModel =
+        settings::Entity::find().one(db).await?.unwrap().into();
     settings.active_model = Set(model.id);
     // let settings = settings::ActiveModel {
     //     id: Set(Uuid::new_v4()),
@@ -122,16 +122,17 @@ async fn settings(state: tauri::State<'_, State>, settings: Settings) -> Result<
     //     }),
     // };
 
-    settings.update(&state.db).await.ok();
+    settings.update(db).await.ok();
     Ok(())
 }
 
 #[tauri::command]
 async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
-    let conversations = conversation::Entity::find().all(&state.db).await?;
-    let models = model::Entity::find().all(&state.db).await?;
+    let db = &state.db;
+    let conversations = conversation::Entity::find().all(db).await?;
+    let models = model::Entity::find().all(db).await?;
     // let active_model = "tiiuae/falcon-180B-chat".into();
-    let settings = match settings::Entity::find().one(&state.db).await? {
+    let settings = match settings::Entity::find().one(db).await? {
         Some(settings) => settings,
         None => {
             let active_model = &models[0].id;
@@ -146,16 +147,12 @@ async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
                 }),
             };
 
-            new_settings.insert(&state.db).await.ok();
+            new_settings.insert(db).await.ok();
             // TODO fix this find last_insert_model
-            settings::Entity::find()
-                .one(&state.db)
-                .await
-                .unwrap()
-                .unwrap()
+            settings::Entity::find().one(db).await.unwrap().unwrap()
         }
     };
-    let token = cache().token();
+    let token = state.cache.token().clone();
     let load = Load {
         conversations,
         models,
@@ -168,12 +165,12 @@ async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
     Ok(load)
 }
 
-fn cache() -> Cache {
+#[allow(unused_variables)]
+fn cache(path: &Path) -> Cache {
     #[cfg(not(mobile))]
     let cache = Cache::default();
     #[cfg(mobile)]
     let cache = {
-        let path = std::path::Path::new("/data/data/co.huggingface.chat/cache/");
         std::fs::create_dir_all(path).expect("Could not create dir");
         let cache = Cache::new(path.to_path_buf());
         let token_path = cache.token_path();
@@ -199,12 +196,13 @@ async fn conversation(
     state: tauri::State<'_, State>,
     model: String,
 ) -> Result<ConversationResponse, Error> {
+    let db = &state.db;
     // Rename for naming sanity
     let model_id = model;
     let model: Option<model::Model> = model::Entity::find()
         .filter(model::Column::Id.contains(model_id.clone()))
         .order_by_asc(model::Column::Name)
-        .one(&state.db)
+        .one(db)
         .await?;
     let model = model.ok_or(Error::ModelNotFound(model_id))?;
     let id = Uuid::new_v4();
@@ -216,7 +214,7 @@ async fn conversation(
         updated_at: Set(chrono::Utc::now()),
     };
 
-    conversation.insert(&state.db).await.ok();
+    conversation.insert(db).await.ok();
     Ok(ConversationResponse {
         conversation_id: id,
     })
@@ -235,16 +233,14 @@ async fn load_conversation(
     state: tauri::State<'_, State>,
     id: Uuid,
 ) -> Result<ConversationView, Error> {
+    let db = &state.db;
     let conversation: Option<Conversation> = conversation::Entity::find()
         .filter(conversation::Column::Id.eq(id))
-        .one(&state.db)
+        .one(db)
         .await?;
     let conversation = conversation.unwrap();
     // Then, find all related fruits of this cake
-    let messages: Vec<Message> = conversation
-        .find_related(message::Entity)
-        .all(&state.db)
-        .await?;
+    let messages: Vec<Message> = conversation.find_related(message::Entity).all(db).await?;
     Ok(ConversationView {
         model: conversation.model_id.clone().unwrap(),
         // model: "codellama/CodeLlama-7b-hf".into(),
@@ -309,6 +305,7 @@ If a question does not make any sense, or is not factually coherent, explain why
 
 fn query_api(
     app: tauri::AppHandle,
+    state: tauri::State<'_, State>,
     model: String,
     conversation_id: Uuid,
     inputs: String,
@@ -329,6 +326,7 @@ fn query_api(
         request = request.header(AUTHORIZATION, format!("Bearer {token}"));
     }
 
+    let db = state.db.clone();
     tokio::task::spawn(async move {
         let mut stream = request.send().await?.bytes_stream();
 
@@ -348,7 +346,6 @@ fn query_api(
                     created_at: Set(chrono::Utc::now()),
                     updated_at: Set(chrono::Utc::now()),
                 };
-                let db = init_db().await?;
                 message.insert(&db).await.ok();
             }
 
@@ -374,9 +371,10 @@ async fn query_local(
         stream: true,
     };
     let (newtx, mut rx) = tokio::sync::oneshot::channel();
+    let cache = state.cache.clone();
     tokio::task::spawn_blocking(move || {
         if model == "karpathy/tinyllamas" {
-            let mut pipeline = crate::local::llama_c::load_local(query)?;
+            let mut pipeline = crate::local::llama_c::load_local(query, &cache)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
                 app.emit("text-generation", generation)?;
@@ -385,16 +383,18 @@ async fn query_local(
                 }
             }
         } else if model == "microsoft/phi-1_5" {
-            let mut pipeline = crate::local::phi::load_local(query)?;
+            let mut pipeline = crate::local::phi::load_local(query, &cache)?;
+            info!("Loaded pipeline");
             for generation in pipeline.iter() {
                 let generation = generation?;
+                info!("Emitting {generation:?}");
                 app.emit("text-generation", generation)?;
                 if let Ok(_) = rx.try_recv() {
                     break;
                 }
             }
         } else {
-            let mut pipeline = load_local(query)?;
+            let mut pipeline = crate::local::llama::load_local(query, &cache)?;
             for generation in pipeline.iter() {
                 let generation = generation?;
                 app.emit("text-generation", generation)?;
@@ -405,10 +405,12 @@ async fn query_local(
         };
         Ok::<(), Error>(())
     });
-    let mut tx = state.tx.lock().await;
+    let mut tx = state.tx.try_lock()?;
     let tmptx = (*tx).take();
     if let Some(tx) = tmptx {
-        tx.send(()).unwrap();
+        if let Err(_) = tx.send(()) {
+            // error!("Could not send stop signal");
+        }
     }
     *tx = Some(newtx);
     Ok(())
@@ -417,10 +419,12 @@ async fn query_local(
 #[tauri::command]
 async fn stop(state: tauri::State<'_, State>) -> Result<(), Error> {
     tracing::info!("STOP");
-    let mut tx = state.tx.lock().await;
+    let mut tx = state.tx.try_lock()?;
     let tmptx = (*tx).take();
     if let Some(tx) = tmptx {
-        tx.send(()).unwrap();
+        if let Err(_) = tx.send(()) {
+            error!("Could not send stop signal");
+        }
     }
     Ok(())
 
@@ -442,6 +446,7 @@ async fn generate(
     // options: Options,
 ) -> Result<(), Error> {
     tracing::debug!("Generating for {model}");
+    let db = &state.db;
     let message = message::ActiveModel {
         conversation_id: Set(conversation_id),
         id: Set(Uuid::new_v4()),
@@ -451,18 +456,19 @@ async fn generate(
         updated_at: Set(chrono::Utc::now()),
     };
 
-    message.insert(&state.db).await.ok();
+    message.insert(db).await.ok();
     match &model[..] {
         "tiiuae/falcon-180B-chat" => {
             info!("New falcon message");
             let inputs = build_falcon_prompt(inputs);
             query_api(
                 app,
+                state.clone(),
                 model,
                 conversation_id,
                 inputs,
                 parameters,
-                state.token.as_ref(),
+                state.cache.token().as_ref(),
             )
         }
         "meta-llama/Llama-2-7b-chat-hf" => {
@@ -476,14 +482,11 @@ async fn generate(
     }
 }
 
-pub type SetupHook = Box<dyn FnOnce(&mut App) -> Result<(), Box<dyn std::error::Error>> + Send>;
-
 #[derive(Default)]
-pub struct AppBuilder {
-    setup: Option<SetupHook>,
-}
-async fn init_db() -> Result<DatabaseConnection, Error> {
-    let mut path = cache().path().clone();
+pub struct AppBuilder {}
+
+async fn init_db(cache: &Cache) -> Result<DatabaseConnection, Error> {
+    let mut path = cache.path().clone();
     path.push("chat");
     path.push("db.sqlite");
     if !path.exists() {
@@ -507,17 +510,8 @@ impl AppBuilder {
         Self::default()
     }
 
-    #[must_use]
-    pub fn setup<F>(mut self, setup: F) -> Self
-    where
-        F: FnOnce(&mut App) -> Result<(), Box<dyn std::error::Error>> + Send + 'static,
-    {
-        self.setup.replace(Box::new(setup));
-        self
-    }
-
-    pub async fn run(self) {
-        let setup = self.setup;
+    pub fn run(self) {
+        // let setup = self.setup;
         info!("Start the run");
         tracing_subscriber::fmt::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -533,18 +527,7 @@ impl AppBuilder {
             candle::utils::with_simd128(),
             candle::utils::with_f16c()
         );
-        tracing::info!("Start the db");
-        let db = init_db().await.expect("Failed to create db");
-        tracing::info!("get the token");
-        let token = cache().token();
-
         tauri::Builder::default()
-            .plugin(tauri_plugin_fs::init())
-            .manage(State {
-                db,
-                token,
-                tx: Mutex::new(None),
-            })
             .invoke_handler(tauri::generate_handler![
                 load,
                 conversation,
@@ -554,9 +537,21 @@ impl AppBuilder {
                 settings,
             ])
             .setup(move |app| {
-                if let Some(setup) = setup {
-                    (setup)(app)?;
-                }
+                let path = app.path().local_data_dir().expect("Have a local data dir");
+                let cache = cache(&path);
+                tracing::info!("Start the db");
+                let db = tauri::async_runtime::block_on(async {
+                    init_db(&cache).await.expect("Failed to create db")
+                });
+                tracing::info!("get the token");
+                app.manage(State {
+                    db,
+                    cache,
+                    tx: Mutex::new(None),
+                });
+                // if let Some(setup) = setup {
+                //     (setup)(app)?;
+                // }
                 Ok(())
             })
             .run(tauri::generate_context!())

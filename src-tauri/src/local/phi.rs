@@ -10,6 +10,7 @@ use candle_transformers::models::quantized_mixformer::MixFormerSequentialForCaus
 
 use candle::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
+use hf_hub::{api::sync::Api, Cache};
 use hf_hub::{Repo, RepoType};
 use tokenizers::Tokenizer;
 use tracing::info;
@@ -154,18 +155,16 @@ use tracing::info;
 //     repeat_last_n: usize,
 // }
 
-fn tokenizer() -> Result<Tokenizer, Error> {
+fn tokenizer(api: &Api) -> Result<Tokenizer, Error> {
     let model_id = "microsoft/phi-1_5".to_string();
     let revision = "refs/pr/18".to_string();
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let repo = api.repo(Repo::with_revision(model_id, RepoType::Model, revision));
     let tokenizer_filename = repo.get("tokenizer.json")?;
     Ok(Tokenizer::from_file(tokenizer_filename)?)
 }
 
-fn get_model() -> Result<QMixFormer, Error> {
+fn get_model(api: &Api) -> Result<QMixFormer, Error> {
     let model_id = "lmz/candle-quantized-phi".to_string();
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let repo = api.repo(Repo::new(model_id, RepoType::Model));
     info!("Getting phi model");
     let filename = repo.get("model-q4k.gguf")?;
@@ -176,9 +175,10 @@ fn get_model() -> Result<QMixFormer, Error> {
     Ok(model)
 }
 
-pub fn load_local(query: Query) -> Result<Pipeline, Error> {
-    let tokenizer = tokenizer()?;
-    let model = get_model()?;
+pub fn load_local(query: Query, cache: &Cache) -> Result<Pipeline, Error> {
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(cache.clone()).build()?;
+    let tokenizer = tokenizer(&api)?;
+    let model = get_model(&api)?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
     let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(

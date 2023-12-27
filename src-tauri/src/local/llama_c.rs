@@ -13,6 +13,7 @@ use crate::{Error, Generation, Query, Token};
 use candle_nn::linear_no_bias as linear;
 use candle_nn::{embedding, rms_norm, Embedding, Linear, Module, RmsNorm, VarBuilder};
 use candle_transformers::generation::LogitsProcessor;
+use hf_hub::{api::sync::Api, Cache as HfCache};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokenizers::Tokenizer;
@@ -42,15 +43,13 @@ use tracing::info;
 //     repeat_last_n: usize,
 // }
 
-fn tokenizer() -> Result<Tokenizer, Error> {
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
+fn tokenizer(api: &Api) -> Result<Tokenizer, Error> {
     let api = api.model("hf-internal-testing/llama-tokenizer".to_string());
     let tokenizer_path = api.get("tokenizer.json")?;
     Ok(Tokenizer::from_file(tokenizer_path)?)
 }
 
-fn get_model() -> Result<Llama, Error> {
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
+fn get_model(api: &Api) -> Result<Llama, Error> {
     let (repo, filename) = ("karpathy/tinyllamas", "stories15M.bin");
     info!("loading the model weights from {}", repo);
     let api = api.model(repo.into());
@@ -637,9 +636,10 @@ fn print_token(next_token: u32, tokenizer: &Tokenizer) -> String {
     "".into()
 }
 
-pub fn load_local(query: Query) -> Result<Pipeline, Error> {
-    let tokenizer = tokenizer()?;
-    let model = get_model()?;
+pub fn load_local(query: Query, cache: &HfCache) -> Result<Pipeline, Error> {
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(cache.clone()).build()?;
+    let tokenizer = tokenizer(&api)?;
+    let model = get_model(&api)?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
     let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(

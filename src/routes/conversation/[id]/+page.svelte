@@ -103,7 +103,7 @@
 			// } as Options
 		);
 
-        console.log("RESPONSE", response);
+        console.log("Invoked generate");
         let done = false;
         const reader = response.getReader();
         while (!done){
@@ -111,7 +111,7 @@
             const output = value;
 		// for await (const output of response) {
 			pending = false;
-            console.log(output);
+            console.log("Output", output);
 
 			if (!output) {
                 break;

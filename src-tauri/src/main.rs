@@ -3,7 +3,6 @@
     windows_subsystem = "windows"
 )]
 
-#[tokio::main]
-pub async fn main() {
-    chat::AppBuilder::new().run().await;
+pub fn main() {
+    chat::AppBuilder::new().run();
 }

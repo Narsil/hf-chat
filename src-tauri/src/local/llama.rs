@@ -10,10 +10,11 @@ use crate::{Error, Generation, Query, Token};
 use candle::quantized::{ggml_file, gguf_file};
 use candle::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
+use hf_hub::{api::sync::Api, Cache};
 
 use candle_transformers::models::quantized_llama as model;
-use tracing::info;
 use model::ModelWeights;
+use tracing::info;
 
 // const DEFAULT_PROMPT: &str = "My favorite theorem is ";
 //
@@ -82,23 +83,17 @@ use model::ModelWeights;
 //     gqa: Option<usize>,
 // }
 
-fn tokenizer() -> Result<Tokenizer, Error> {
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
+fn tokenizer(api: &Api) -> Result<Tokenizer, Error> {
     let api = api.model("hf-internal-testing/llama-tokenizer".to_string());
     let tokenizer_path = api.get("tokenizer.json")?;
     Ok(Tokenizer::from_file(tokenizer_path)?)
 }
 
-fn get_model() -> Result<ModelWeights, Error> {
+fn get_model(api: &Api) -> Result<ModelWeights, Error> {
     let (repo, filename) = (
         "TheBloke/Llama-2-7B-Chat-GGML",
         "llama-2-7b-chat.ggmlv3.q4_0.bin",
     );
-    // let (repo, filename) = (
-    //     "klosax/tinyllamas-stories-gguf",
-    //     "tinyllamas-stories-260k-f32.gguf",
-    // );
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(crate::cache()).build()?;
     let api = api.model(repo.to_string());
     info!("Getting {filename}");
     let model_path = api.get(filename)?;
@@ -189,9 +184,10 @@ pub struct Pipeline {
     logits_processor: LogitsProcessor,
 }
 
-pub fn load_local(query: Query) -> Result<Pipeline, Error> {
-    let tokenizer = tokenizer()?;
-    let model = get_model()?;
+pub fn load_local(query: Query, cache: &Cache) -> Result<Pipeline, Error> {
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(cache.clone()).build()?;
+    let tokenizer = tokenizer(&api)?;
+    let model = get_model(&api)?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
     let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(
