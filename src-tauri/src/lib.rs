@@ -24,6 +24,8 @@ use entities::model::{self, Model, Parameters};
 use entities::settings::{self, CustomPrompts, Model as Settings};
 use tracing::{debug, error, info};
 
+const TARGET: &str = env!("TARGET");
+
 #[cfg(mobile)]
 mod mobile;
 #[cfg(mobile)]
@@ -366,7 +368,7 @@ async fn query_local(
     parameters: Parameters,
 ) -> Result<(), Error> {
     let url = format!("https://api-inference.huggingface.co/models/{model}");
-    info!("Generate {url}");
+    info!("Generate {url} on device {:?} {:?}", state.device, TARGET);
     let query = Query {
         inputs,
         parameters,
@@ -514,22 +516,8 @@ impl AppBuilder {
     }
 
     pub fn run(self) {
-        info!("Start the run");
-        tracing_subscriber::fmt::fmt()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .init();
-        #[cfg(mobile)]
-        android_logger::init_once(
-            android_logger::Config::default().with_max_level(tracing::log::LevelFilter::Trace),
-        );
-        info!(
-            "avx: {}, neon: {}, simd128: {}, f16c: {}",
-            candle::utils::with_avx(),
-            candle::utils::with_neon(),
-            candle::utils::with_simd128(),
-            candle::utils::with_f16c()
-        );
         tauri::Builder::default()
+            .plugin(tauri_plugin_log::Builder::default().build())
             .invoke_handler(tauri::generate_handler![
                 load,
                 conversation,
@@ -539,6 +527,14 @@ impl AppBuilder {
                 settings,
             ])
             .setup(move |app| {
+                info!("Start the run");
+                info!(
+                    "avx: {}, neon: {}, simd128: {}, f16c: {}",
+                    candle::utils::with_avx(),
+                    candle::utils::with_neon(),
+                    candle::utils::with_simd128(),
+                    candle::utils::with_f16c()
+                );
                 let path = app.path().local_data_dir().expect("Have a local data dir");
                 let cache = cache(&path);
                 tracing::info!("Start the db");
@@ -546,7 +542,13 @@ impl AppBuilder {
                     init_db(&cache).await.expect("Failed to create db")
                 });
                 tracing::info!("get the device");
-                let device = Device::Cpu;
+                let device = if candle::utils::cuda_is_available() {
+                    Device::new_cuda(0)?
+                } else if candle::utils::metal_is_available() && TARGET != "aarch64-apple-ios-sim" {
+                    Device::new_metal(0)?
+                } else {
+                    Device::Cpu
+                };
                 app.manage(State {
                     db,
                     cache,

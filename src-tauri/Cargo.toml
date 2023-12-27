@@ -37,7 +37,7 @@ candle-transformers = { git="https://github.com/huggingface/candle/", package = 
 candle-nn = { git="https://github.com/huggingface/candle/", package = "candle-nn", features= ["metal"] }
 openssl = { version = "0.10", features = ["vendored"] }
 android_logger = "0.13.3"
-tauri-plugin-fs = "2.0.0-alpha.2"
+tauri-plugin-log = "2.0.0-alpha"
 uuid = { version = "1.4.1", features = ["v4"] }
 byteorder = "1.4.3"
 hf-hub = { version = "0.3.2" }

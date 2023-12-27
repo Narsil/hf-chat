@@ -695,7 +695,6 @@ impl<'a> PipelineIter<'a> {
         let next_token = self.pipeline.logits_processor.sample(&logits)?;
         self.all_tokens.push(next_token);
         let text = print_token(next_token, &self.pipeline.tokenizer);
-        tracing::info!("Text: {text}");
 
         self.tokens = vec![next_token];
         let generated_text = if self.i == self.pipeline.query.parameters.max_new_tokens {
