@@ -178,12 +178,6 @@ fn cache(path: &Path) -> Cache {
         std::fs::create_dir_all(path).expect("Could not create dir");
         let cache = Cache::new(path.to_path_buf());
         let token_path = cache.token_path();
-        if !token_path.exists() {
-            use std::io::Write;
-            let mut file = std::fs::File::create(token_path).unwrap();
-            file.write(b"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")
-                .unwrap();
-        }
         cache
     };
     cache
@@ -388,6 +382,7 @@ async fn query_local(
                 }
             }
         } else if model == "microsoft/phi-1_5" {
+            let device = Device::Cpu;
             let mut pipeline = crate::local::phi::load_local(query, device, &cache)?;
             info!("Loaded pipeline");
             for generation in pipeline.iter() {

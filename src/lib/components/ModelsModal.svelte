@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
+    import { invoke } from '@tauri-apps/api/primitives'
 
 	import Modal from "$lib/components/Modal.svelte";
 	import CarbonClose from "~icons/carbon/close";
@@ -61,7 +62,7 @@
               
               data[key] = value;
             }
-            window.__TAURI__.primitives.invoke("settings", {settings: data});
+            invoke("settings", {settings: data});
 
             console.log(data)
             // TODO this is not smooth... at all !
