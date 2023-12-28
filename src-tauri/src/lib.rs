@@ -368,7 +368,7 @@ async fn query_local(
     parameters: Parameters,
 ) -> Result<(), Error> {
     let url = format!("https://api-inference.huggingface.co/models/{model}");
-    info!("Generate {url} on device {:?} {:?}", state.device, TARGET);
+    info!("Generate {url} on device {:?} {:?}", state.device);
     let query = Query {
         inputs,
         parameters,
@@ -544,6 +544,7 @@ impl AppBuilder {
                 tracing::info!("get the device");
                 let device = if candle::utils::cuda_is_available() {
                     Device::new_cuda(0)?
+                // Simulator doesn't support MPS (Metal Performance Shader).
                 } else if candle::utils::metal_is_available() && TARGET != "aarch64-apple-ios-sim" {
                     Device::new_metal(0)?
                 } else {

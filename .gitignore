@@ -8,5 +8,3 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 *.sqlite
 *.jks
-src-tauri/gen
-
