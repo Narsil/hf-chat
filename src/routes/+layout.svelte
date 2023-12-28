@@ -100,6 +100,8 @@
 			? !data.user
 			: !data.settings.ethicsModalAcceptedAt && !!PUBLIC_APP_DISCLAIMER);
 
+    console.log("Requires login", requiresLogin, $page.route.id, data.requiresLogin);
+
 	let loginModalVisible = false;
 </script>
 

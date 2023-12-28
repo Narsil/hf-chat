@@ -11,7 +11,7 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: hf-chat
-      PRODUCT_BUNDLE_IDENTIFIER: co.huggingface.chat
+      PRODUCT_BUNDLE_IDENTIFIER: co.huggingface.SwiftChat
       DEVELOPMENT_TEAM: 2EADP68M95
 targetTemplates:
   app:

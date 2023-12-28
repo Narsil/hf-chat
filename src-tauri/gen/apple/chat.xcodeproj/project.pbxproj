@@ -11,9 +11,7 @@
 		0E3D19522C28FA61F2B47630 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2514D46644DA7A8C8E0849A8 /* MetalKit.framework */; };
 		216553FFB996B530637B20AC /* libchat.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 70074DC4DCB6A695B5926763 /* libchat.a */; };
 		25155917D9A392E9C3C63AE4 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99BC4B9DC7D6BA112D07DA2F /* WebKit.framework */; };
-		37027A132B3CCD7500D8DB4A /* MetalPerformanceShaders.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37027A122B3CCD7500D8DB4A /* MetalPerformanceShaders.framework */; };
-		3792339E2B3CCBF10069DF1D /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F4536091CA1B8CA405BAA356 /* Metal.framework */; };
-		379233A02B3CCBFB0069DF1D /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3792339F2B3CCBFB0069DF1D /* Accelerate.framework */; };
+		37EFA0402B3DB70E005DDF26 /* MetalPerformanceShaders.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37EFA03F2B3DB70E005DDF26 /* MetalPerformanceShaders.framework */; };
 		396F55F1394DB0C3DEC86A74 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = D5AD7AC844170D5E7CF8CE2D /* main.mm */; };
 		43F47606FDA1F951F7D41D58 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F68A10A4B95BA5904FC3E1BB /* QuartzCore.framework */; };
 		67E5F83342FB1D39CB3AEE35 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 2E717B00BBBA007BFF32E987 /* assets */; };
@@ -32,8 +30,7 @@
 		2D87DBBC69136E2DD1A9800A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2E717B00BBBA007BFF32E987 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		3644BCF741B6D5CF207F30B6 /* chat_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = chat_iOS.entitlements; sourceTree = "<group>"; };
-		37027A122B3CCD7500D8DB4A /* MetalPerformanceShaders.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalPerformanceShaders.framework; path = System/Library/Frameworks/MetalPerformanceShaders.framework; sourceTree = SDKROOT; };
-		3792339F2B3CCBFB0069DF1D /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		37EFA03F2B3DB70E005DDF26 /* MetalPerformanceShaders.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalPerformanceShaders.framework; path = System/Library/Frameworks/MetalPerformanceShaders.framework; sourceTree = SDKROOT; };
 		3A45A18BB8D6B7574C07BDA9 /* m20230918_070745_initial_models.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = m20230918_070745_initial_models.rs; sourceTree = "<group>"; };
 		4F6CAA9955C09E825B47B1B9 /* m20230918_064025_create_conversation.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = m20230918_064025_create_conversation.rs; sourceTree = "<group>"; };
 		5CFB0CEB12C8275E2C3C337D /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
@@ -70,15 +67,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				216553FFB996B530637B20AC /* libchat.a in Frameworks */,
-				3792339E2B3CCBF10069DF1D /* Metal.framework in Frameworks */,
+				37EFA0402B3DB70E005DDF26 /* MetalPerformanceShaders.framework in Frameworks */,
 				0A353C9010A970057CFA9BE5 /* CoreGraphics.framework in Frameworks */,
 				D2F084529276E4DB6469F1C4 /* Metal.framework in Frameworks */,
 				0E3D19522C28FA61F2B47630 /* MetalKit.framework in Frameworks */,
 				43F47606FDA1F951F7D41D58 /* QuartzCore.framework in Frameworks */,
 				8453873C044B6DC84A2A868B /* Security.framework in Frameworks */,
-				379233A02B3CCBFB0069DF1D /* Accelerate.framework in Frameworks */,
 				AEC8A0A04AB7E6586F6287FB /* UIKit.framework in Frameworks */,
-				37027A132B3CCD7500D8DB4A /* MetalPerformanceShaders.framework in Frameworks */,
 				25155917D9A392E9C3C63AE4 /* WebKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -143,8 +138,7 @@
 		8E7522A896E860522398039A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				37027A122B3CCD7500D8DB4A /* MetalPerformanceShaders.framework */,
-				3792339F2B3CCBFB0069DF1D /* Accelerate.framework */,
+				37EFA03F2B3DB70E005DDF26 /* MetalPerformanceShaders.framework */,
 				BB7A5A80C87963B74B265B21 /* CoreGraphics.framework */,
 				70074DC4DCB6A695B5926763 /* libchat.a */,
 				F4536091CA1B8CA405BAA356 /* Metal.framework */,
@@ -393,7 +387,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = chat_iOS/chat_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 5RS3335LGF;
+				DEVELOPMENT_TEAM = 2EADP68M95;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = "arm64-sim x86_64";
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
@@ -427,7 +421,7 @@
 					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
 					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = co.huggingface.chat;
+				PRODUCT_BUNDLE_IDENTIFIER = co.huggingface.SwiftChat;
 				PRODUCT_NAME = "hf-chat";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -446,7 +440,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = chat_iOS/chat_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 5RS3335LGF;
+				DEVELOPMENT_TEAM = 2EADP68M95;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = "arm64-sim x86_64";
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
@@ -480,7 +474,7 @@
 					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
 					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = co.huggingface.chat;
+				PRODUCT_BUNDLE_IDENTIFIER = co.huggingface.SwiftChat;
 				PRODUCT_NAME = "hf-chat";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

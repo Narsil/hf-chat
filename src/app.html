@@ -16,12 +16,17 @@
 			window.gaIdDeprecated = "%gaIdDeprecated%";
 
             // Be sure to set `build.withGlobalTauri` in `tauri.conf.json` to true
-            const invoke = window.__TAURI__.primitives.invoke
+            const invoke = window.__TAURI_INTERNALS__.invoke
 
             const _fetch = window.fetch;
 
             window.fetchProxy = async (url, opts, ...args) => {
-                if (url == `${window.location.origin}/settings`){
+                if (url == `${window.location.origin}/login`){
+                    console.log(`Intercepting ${url} ${JSON.stringify(opts)}, ${args}`);
+                    // const content = await invoke("fetch", {url, opts});
+                    return new Response("{}");
+                }
+                else if (url == `${window.location.origin}/settings`){
                     console.log(`Intercepting ${url} ${JSON.stringify(opts)}, ${args}`);
                     // const content = await invoke("fetch", {url, opts});
                     return new Response("{}");

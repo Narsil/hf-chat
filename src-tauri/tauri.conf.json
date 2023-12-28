@@ -28,7 +28,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "co.huggingface.chat",
+      "identifier": "co.huggingface.SwiftChat",
       "iOS": {
           "developmentTeam": "2EADP68M95"
       },

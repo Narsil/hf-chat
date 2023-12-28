@@ -1,6 +1,3 @@
-[build]
-target = "aarch64-apple-darwin"
-
 [target.aarch64-apple-darwin]
 rustflags = [
     "-C",
