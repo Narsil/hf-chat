@@ -368,7 +368,7 @@ async fn query_local(
     parameters: Parameters,
 ) -> Result<(), Error> {
     let url = format!("https://api-inference.huggingface.co/models/{model}");
-    info!("Generate {url} on device {:?} {:?}", state.device);
+    info!("Generate {url} on device {:?}", state.device);
     let query = Query {
         inputs,
         parameters,
