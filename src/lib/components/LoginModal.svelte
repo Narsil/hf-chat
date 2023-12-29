@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from "$app/environment";
+    import { invoke } from '@tauri-apps/api/primitives'
 	import { base } from "$app/paths";
 	import { page } from "$app/stores";
 	import { PUBLIC_APP_DATA_SHARING, PUBLIC_APP_NAME, PUBLIC_VERSION } from "$env/static/public";
@@ -47,6 +48,16 @@
 			action="{base}/{$page.data.requiresLogin ? 'login' : 'settings'}"
 			target={isIframe ? "_blank" : ""}
 			method="POST"
+            on:submit={async (e) => {
+                e.preventDefault();
+                const url = await invoke("login");
+
+                // TODO this is not smooth... at all !
+                if (url !== undefined){
+                    window.location = url;
+                    // console.log("Auth url", url);
+                }
+            }}
 			class="flex w-full flex-col items-center gap-2"
 		>
 			{#if $page.data.requiresLogin}

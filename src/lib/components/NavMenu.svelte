@@ -50,7 +50,14 @@
 	{#if user?.username || user?.email}
 		<form
 			action="{base}/logout"
+
 			method="post"
+            on:submit={async (e) => {
+                e.preventDefault();
+                await invoke("logout");
+
+                window.location.reload();
+            }}
 			class="group flex items-center gap-1.5 rounded-lg pl-3 pr-2 hover:bg-gray-100 dark:hover:bg-gray-700"
 		>
 			<span

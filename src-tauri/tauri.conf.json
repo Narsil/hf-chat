@@ -36,7 +36,7 @@
       "macOS": {
         "entitlements": null,
         "exceptionDomain": "",
-        "frameworks": ["MetalPerformanceShaders.framework"],
+        "frameworks": [],
         "providerShortName": null,
         "signingIdentity": null
       },

@@ -3,3 +3,4 @@ pub mod message;
 pub mod model;
 pub mod prelude;
 pub mod settings;
+pub mod user;

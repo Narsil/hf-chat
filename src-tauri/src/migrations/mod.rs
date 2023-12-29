@@ -6,6 +6,7 @@ mod m20230918_070745_initial_models;
 mod m20230918_082713_create_messages;
 mod m20230920_064642_create_settings;
 mod m20231005_190334_add_phi;
+mod m20231229_125956_create_users;
 
 pub struct Migrator;
 
@@ -19,6 +20,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230918_082713_create_messages::Migration),
             Box::new(m20230920_064642_create_settings::Migration),
             Box::new(m20231005_190334_add_phi::Migration),
+            Box::new(m20231229_125956_create_users::Migration),
         ]
     }
 }

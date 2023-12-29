@@ -41,6 +41,7 @@ tauri-plugin-log = "2.0.0-alpha"
 uuid = { version = "1.4.1", features = ["v4"] }
 byteorder = "1.4.3"
 hf-hub = { version = "0.3.2" }
+openidconnect = "3.4.0"
 
 [target.'cfg(macos)'.dependencies]
 candle = { git="https://github.com/huggingface/candle/", package = "candle-core", features= ["metal"] }

@@ -1,5 +1,14 @@
 use candle::Device;
 use futures_util::StreamExt;
+use openidconnect::core::{
+    CoreAuthenticationFlow, CoreClient, CoreErrorResponseType, CoreProviderMetadata,
+};
+use openidconnect::reqwest::async_http_client;
+use openidconnect::{
+    AccessTokenHash, AuthorizationCode, ClientId, CsrfToken, IssuerUrl, Nonce, PkceCodeChallenge,
+    PkceCodeVerifier, RedirectUrl, RequestTokenError, Scope, StandardErrorResponse,
+};
+use openidconnect::{OAuth2TokenResponse, TokenResponse};
 use reqwest::header::AUTHORIZATION;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
@@ -8,6 +17,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::Path;
 use tauri::Manager;
 use tokio::sync::Mutex;
@@ -22,6 +32,7 @@ use entities::conversation::{self, Model as Conversation};
 use entities::message::{self, Model as Message};
 use entities::model::{self, Model, Parameters};
 use entities::settings::{self, CustomPrompts, Model as Settings};
+use entities::user::{self, Model as User};
 use tracing::{debug, error, info};
 
 const TARGET: &str = env!("TARGET");
@@ -62,6 +73,48 @@ pub enum Error {
 
     #[error("Model {0} was not found")]
     ModelNotFound(String),
+
+    #[error("Url error {0}")]
+    OpenIdUrl(#[from] openidconnect::url::ParseError),
+
+    #[error("Openid error {0}")]
+    OpenId(#[from] OpenidError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OpenidError {
+    #[error("Url error {0}")]
+    Url(#[from] openidconnect::url::ParseError),
+
+    #[error("Discover error {0}")]
+    Discovery(#[from] openidconnect::DiscoveryError<openidconnect::reqwest::Error<reqwest::Error>>),
+
+    #[error("Signing error {0}")]
+    Signing(#[from] openidconnect::SigningError),
+
+    #[error("Request token error {0}")]
+    RequestTokenError(
+        #[from]
+        RequestTokenError<
+            openidconnect::reqwest::Error<reqwest::Error>,
+            StandardErrorResponse<CoreErrorResponseType>,
+        >,
+    ),
+
+    #[error("Claims verification error {0}")]
+    Claims(#[from] openidconnect::ClaimsVerificationError),
+
+    #[error("Invalid token")]
+    InvalidToken,
+
+    #[error("Invalid csrf token")]
+    InvalidCsrf,
+
+    #[error("Missing token")]
+    MissingToken,
+
+    #[error("Unset validators")]
+    UnsetValidators,
 }
 
 // we must manually implement serde::Serialize
@@ -84,6 +137,7 @@ struct State {
     db: DatabaseConnection,
     cache: Cache,
     device: Device,
+    openid: Mutex<Option<Openid>>,
     tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
@@ -97,6 +151,7 @@ struct Load {
     requires_login: bool,
     messages_before_login: usize,
     token: Option<String>,
+    user: Option<User>,
 }
 
 #[tauri::command]
@@ -130,6 +185,172 @@ async fn settings(state: tauri::State<'_, State>, settings: Settings) -> Result<
     Ok(())
 }
 
+struct Openid {
+    csrf_token: CsrfToken,
+    nonce: Nonce,
+    pkce_verifier: PkceCodeVerifier,
+}
+
+#[tauri::command]
+async fn login(state: tauri::State<'_, State>) -> Result<String, Error> {
+    let provider_metadata = CoreProviderMetadata::discover_async(
+        IssuerUrl::new("https://huggingface.co".to_string())?,
+        async_http_client,
+    )
+    .await
+    .map_err(OpenidError::from)?;
+
+    // Create an OpenID Connect client by specifying the client ID, client secret, authorization URL
+    // and token URL.
+    let client = CoreClient::from_provider_metadata(
+        provider_metadata,
+        ClientId::new("64d7dfec-160a-41f0-921f-ab071cf4f16f".to_string()),
+        None,
+    )
+    // Set the URL the user will be redirected to after the authorization process.
+    .set_redirect_uri(RedirectUrl::new(
+        "http://localhost:5173/login/callback".to_string(),
+    )?);
+
+    // Generate a PKCE challenge.
+    let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+
+    // Generate the full authorization URL.
+    let (auth_url, csrf_token, nonce) = client
+        .authorize_url(
+            CoreAuthenticationFlow::AuthorizationCode,
+            CsrfToken::new_random,
+            Nonce::new_random,
+        )
+        // Set the desired scopes.
+        .add_scope(Scope::new("profile".to_string()))
+        .add_scope(Scope::new("inference-api".to_string()))
+        // Set the PKCE code challenge.
+        .set_pkce_challenge(pkce_challenge)
+        .url();
+    let mut guard = state.openid.try_lock()?;
+    *guard = Some(Openid {
+        csrf_token,
+        nonce,
+        pkce_verifier,
+    });
+    info!("Authentication url {auth_url}");
+    Ok(auth_url.to_string())
+}
+
+#[tauri::command]
+async fn logout(state: tauri::State<'_, State>) -> Result<(), Error> {
+    let token_path = state.cache.token_path();
+    if token_path.exists() {
+        let token = std::fs::read_to_string(&token_path)?;
+        if token.starts_with("hf_oauth") {
+            std::fs::remove_file(token_path)?;
+        }
+    }
+    let db = &state.db;
+    let user = user::Entity::find().one(db).await.unwrap().unwrap();
+    user.delete(db).await?;
+    // TODO fix this find last_insert_model
+    Ok(())
+}
+
+#[tauri::command]
+async fn login_callback(
+    app_state: tauri::State<'_, State>,
+    code: String,
+    state: String,
+) -> Result<(), Error> {
+    info!("Login callback {code} {state}");
+
+    let mut openid = app_state.openid.try_lock()?;
+    let Openid {
+        csrf_token,
+        nonce,
+        pkce_verifier,
+    } = openid.take().ok_or(OpenidError::UnsetValidators)?;
+    let provider_metadata = CoreProviderMetadata::discover_async(
+        IssuerUrl::new("https://huggingface.co".to_string())?,
+        async_http_client,
+    )
+    .await
+    .map_err(OpenidError::from)?;
+
+    // Create an OpenID Connect client by specifying the client ID, client secret, authorization URL
+    // and token URL.
+    let client = CoreClient::from_provider_metadata(
+        provider_metadata,
+        ClientId::new("64d7dfec-160a-41f0-921f-ab071cf4f16f".to_string()),
+        None,
+    )
+    // Set the URL the user will be redirected to after the authorization process.
+    .set_redirect_uri(RedirectUrl::new(
+        "http://localhost:5173/login/callback".to_string(),
+    )?);
+
+    // Once the user has been redirected to the redirect URL, you'll have access to the
+    // authorization code. For security reasons, your code should verify that the `state`
+    // parameter returned by the server matches `csrf_state`.
+    if csrf_token.secret() != &state {
+        return Err(OpenidError::InvalidCsrf.into());
+    }
+
+    // Now you can exchange it for an access token and ID token.
+    let token_response = client
+        .exchange_code(AuthorizationCode::new(code))
+        // Set the PKCE code verifier.
+        .set_pkce_verifier(pkce_verifier)
+        .request_async(async_http_client)
+        .await
+        .map_err(OpenidError::from)?;
+
+    // Extract the ID token claims after verifying its authenticity and nonce.
+    let id_token = token_response
+        .id_token()
+        .ok_or_else(|| OpenidError::MissingToken)?;
+    let claims = id_token
+        .claims(&client.id_token_verifier(), &nonce)
+        .map_err(OpenidError::from)?;
+
+    // Verify the access token hash to ensure that the access token hasn't been substituted for
+    // another user's.
+    if let Some(expected_access_token_hash) = claims.access_token_hash() {
+        let actual_access_token_hash = AccessTokenHash::from_token(
+            token_response.access_token(),
+            &id_token.signing_alg().map_err(OpenidError::from)?,
+        )
+        .map_err(OpenidError::from)?;
+        if actual_access_token_hash != *expected_access_token_hash {
+            return Err(OpenidError::InvalidToken.into());
+        }
+    }
+
+    // The authenticated user's identity is now available. See the IdTokenClaims struct for a
+    // complete listing of the available claims.
+    let token_path = app_state.cache.token_path();
+    let token = token_response.access_token().secret();
+    if !token_path.exists() {
+        if let Ok(mut file) = std::fs::File::create(token_path) {
+            file.write_all(token.as_bytes())?;
+        }
+    }
+    let name = claims
+        .name()
+        .and_then(|name| name.get(None))
+        .map(|name| name.as_str())
+        .unwrap_or("<not provided>");
+    let db = &app_state.db;
+    let new_user = user::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        username: Set(name.to_string()),
+        email: Set("".to_string()),
+    };
+
+    new_user.insert(db).await.ok();
+    // TODO fix this find last_insert_model
+    // let user = user::Entity::find().one(db).await.unwrap().unwrap();
+    Ok(())
+}
+
 #[tauri::command]
 async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
     let db = &state.db;
@@ -156,6 +377,8 @@ async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
             settings::Entity::find().one(db).await.unwrap().unwrap()
         }
     };
+    let user = user::Entity::find().one(db).await?;
+    info!("Found user {user:?}");
     let token = state.cache.token().clone();
     let load = Load {
         conversations,
@@ -163,8 +386,9 @@ async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
         old_models: vec![],
         settings,
         messages_before_login: 0,
-        requires_login: false,
+        requires_login: true,
         token,
+        user,
     };
     Ok(load)
 }
@@ -520,6 +744,9 @@ impl AppBuilder {
                 generate,
                 stop,
                 settings,
+                login,
+                login_callback,
+                logout,
             ])
             .setup(move |app| {
                 info!("Start the run");
@@ -549,6 +776,7 @@ impl AppBuilder {
                     db,
                     cache,
                     device,
+                    openid: Mutex::new(None),
                     tx: Mutex::new(None),
                 });
                 // if let Some(setup) = setup {
