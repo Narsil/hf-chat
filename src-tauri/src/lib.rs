@@ -192,7 +192,7 @@ struct Openid {
 }
 
 #[tauri::command]
-async fn login(state: tauri::State<'_, State>) -> Result<String, Error> {
+async fn login(state: tauri::State<'_, State>, return_url: String) -> Result<String, Error> {
     let provider_metadata = CoreProviderMetadata::discover_async(
         IssuerUrl::new("https://huggingface.co".to_string())?,
         async_http_client,
@@ -208,9 +208,7 @@ async fn login(state: tauri::State<'_, State>) -> Result<String, Error> {
         None,
     )
     // Set the URL the user will be redirected to after the authorization process.
-    .set_redirect_uri(RedirectUrl::new(
-        "http://localhost:5173/login/callback".to_string(),
-    )?);
+    .set_redirect_uri(RedirectUrl::new(format!("{return_url}/login/callback"))?);
 
     // Generate a PKCE challenge.
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();

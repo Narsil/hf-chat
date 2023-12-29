@@ -35,7 +35,7 @@
       "longDescription": "",
       "macOS": {
         "entitlements": null,
-        "exceptionDomain": "",
+        "exceptionDomain": "huggingface.co",
         "frameworks": [],
         "providerShortName": null,
         "signingIdentity": null

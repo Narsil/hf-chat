@@ -50,7 +50,8 @@
 			method="POST"
             on:submit={async (e) => {
                 e.preventDefault();
-                const url = await invoke("login");
+                const origin = `${window.location.protocol}//${window.location.host}`;
+                const url = await invoke("login", { returnUrl: origin });
 
                 // TODO this is not smooth... at all !
                 if (url !== undefined){
