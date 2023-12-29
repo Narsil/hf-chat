@@ -16,4 +16,3 @@ export const load = async ({ locals, depends, url }) => {
         window.location = "/";
     }
 };
-
