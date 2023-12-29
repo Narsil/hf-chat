@@ -10,5 +10,5 @@ async fn main() {
         std::fs::File::create(path).unwrap();
     }
     std::env::set_var(key, value);
-    cli::run_cli(chat::migrations::Migrator).await;
+    cli::run_cli(hfchat::migrations::Migrator).await;
 }

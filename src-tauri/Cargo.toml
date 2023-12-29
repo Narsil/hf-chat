@@ -1,11 +1,11 @@
 [package]
-name = "chat"
+name = "hfchat"
 version = "0.1.1"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
 repository = ""
-default-run = "chat"
+default-run = "hfchat"
 edition = "2021"
 rust-version = "1.60"
 

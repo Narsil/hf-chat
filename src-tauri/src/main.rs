@@ -4,5 +4,5 @@
 )]
 
 pub fn main() {
-    chat::AppBuilder::new().run();
+    hfchat::AppBuilder::new().run();
 }

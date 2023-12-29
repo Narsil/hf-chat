@@ -28,7 +28,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "co.huggingface.SwiftChat",
+      "identifier": "co.huggingface.hfchat",
       "iOS": {
           "developmentTeam": "2EADP68M95"
       },
@@ -36,7 +36,7 @@
       "macOS": {
         "entitlements": null,
         "exceptionDomain": "",
-        "frameworks": [],
+        "frameworks": ["MetalPerformanceShaders.framework"],
         "providerShortName": null,
         "signingIdentity": null
       },
