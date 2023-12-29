@@ -32,15 +32,21 @@ tracing-subscriber = "0.3.17"
 reqwest = "0.11.20"
 futures-util = "0.3.28"
 tokenizers = "0.14.0"
-candle = { git="https://github.com/huggingface/candle/", package = "candle-core", features= ["metal"] }
-candle-transformers = { git="https://github.com/huggingface/candle/", package = "candle-transformers", features= ["metal"] }
-candle-nn = { git="https://github.com/huggingface/candle/", package = "candle-nn", features= ["metal"] }
+candle = { git="https://github.com/huggingface/candle/", package = "candle-core"}
+candle-transformers = { git="https://github.com/huggingface/candle/", package = "candle-transformers"}
+candle-nn = { git="https://github.com/huggingface/candle/", package = "candle-nn"}
 openssl = { version = "0.10", features = ["vendored"] }
 android_logger = "0.13.3"
 tauri-plugin-log = "2.0.0-alpha"
 uuid = { version = "1.4.1", features = ["v4"] }
 byteorder = "1.4.3"
 hf-hub = { version = "0.3.2" }
+
+[target.'cfg(macos)'.dependencies]
+candle = { git="https://github.com/huggingface/candle/", package = "candle-core", features= ["metal"] }
+candle-transformers = { git="https://github.com/huggingface/candle/", package = "candle-transformers", features= ["metal"] }
+candle-nn = { git="https://github.com/huggingface/candle/", package = "candle-nn", features= ["metal"] }
+
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

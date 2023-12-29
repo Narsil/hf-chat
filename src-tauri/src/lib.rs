@@ -540,8 +540,8 @@ impl AppBuilder {
                 let device = if candle::utils::cuda_is_available() {
                     Device::new_cuda(0)?
                 // Simulator doesn't support MPS (Metal Performance Shader).
-                // } else if candle::utils::metal_is_available() && TARGET != "aarch64-apple-ios-sim" {
-                //     Device::new_metal(0)?
+                } else if candle::utils::metal_is_available() && TARGET != "aarch64-apple-ios-sim" {
+                    Device::new_metal(0)?
                 } else {
                     Device::Cpu
                 };
