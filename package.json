@@ -47,7 +47,7 @@
 		"@huggingface/hub": "^0.5.1",
 		"@huggingface/inference": "^2.6.4",
 		"@tauri-apps/api": "2.0.0-alpha.11",
-		"@tauri-apps/cli": "2.0.0-alpha.17",
+		"@tauri-apps/cli": "2.0.0-alpha.20",
 		"autoprefixer": "^10.4.16",
 		"aws4fetch": "^1.0.17",
 		"date-fns": "^2.30.0",
