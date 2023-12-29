@@ -386,7 +386,7 @@ async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
         old_models: vec![],
         settings,
         messages_before_login: 0,
-        requires_login: true,
+        requires_login: false,
         token,
         user,
     };
