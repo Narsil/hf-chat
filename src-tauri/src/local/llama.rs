@@ -22,7 +22,7 @@ fn tokenizer(api: &Api) -> Result<Tokenizer, Error> {
     Ok(Tokenizer::from_file(tokenizer_path)?)
 }
 
-fn get_model(api: &Api) -> Result<ModelWeights, Error> {
+fn get_model(api: &Api, device: &Device) -> Result<ModelWeights, Error> {
     let (repo, filename) = (
         "TheBloke/Llama-2-7B-Chat-GGML",
         "llama-2-7b-chat.ggmlv3.q4_0.bin",
@@ -40,7 +40,7 @@ fn get_model(api: &Api) -> Result<ModelWeights, Error> {
             for (_, tensor) in model.tensor_infos.iter() {
                 let elem_count = tensor.shape.elem_count();
                 total_size_in_bytes +=
-                    elem_count * tensor.ggml_dtype.type_size() / tensor.ggml_dtype.blck_size();
+                    elem_count * tensor.ggml_dtype.type_size() / tensor.ggml_dtype.block_size();
             }
             info!(
                 "loaded {:?} tensors ({}) in {:.2}s",
@@ -48,15 +48,15 @@ fn get_model(api: &Api) -> Result<ModelWeights, Error> {
                 &format_size(total_size_in_bytes),
                 start.elapsed().as_secs_f32(),
             );
-            ModelWeights::from_gguf(model, &mut file)?
+            ModelWeights::from_gguf(model, &mut file, &device)?
         }
         Some("ggml" | "bin") | Some(_) | None => {
-            let model = ggml_file::Content::read(&mut file)?;
+            let model = ggml_file::Content::read(&mut file, &device)?;
             let mut total_size_in_bytes = 0;
             for (_, tensor) in model.tensors.iter() {
                 let elem_count = tensor.shape().elem_count();
                 total_size_in_bytes +=
-                    elem_count * tensor.dtype().type_size() / tensor.dtype().blck_size();
+                    elem_count * tensor.dtype().type_size() / tensor.dtype().block_size();
             }
             info!(
                 "loaded {:?} tensors ({}) in {:.2}s",
@@ -121,7 +121,7 @@ pub struct Pipeline {
 pub fn load_local(query: Query, device: Device, cache: &Cache) -> Result<Pipeline, Error> {
     let api = hf_hub::api::sync::ApiBuilder::from_cache(cache.clone()).build()?;
     let tokenizer = tokenizer(&api)?;
-    let model = get_model(&api)?;
+    let model = get_model(&api, &device)?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
     let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(

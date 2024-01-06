@@ -583,8 +583,7 @@ async fn query_local(
     inputs: String,
     parameters: Parameters,
 ) -> Result<(), Error> {
-    let url = format!("https://api-inference.huggingface.co/models/{model}");
-    info!("Generate {url} on device {:?}", state.device);
+    info!("Generate {model} on device {:?}", state.device);
     let query = Query {
         inputs,
         parameters,
@@ -605,7 +604,7 @@ async fn query_local(
             }
         } else if model == "microsoft/phi-1_5" {
             let device = Device::Cpu;
-            let mut pipeline = crate::local::phi::load_local(query, device, &cache)?;
+            let mut pipeline = crate::local::phi::load_local(query, device, &cache).unwrap();
             info!("Loaded pipeline");
             for generation in pipeline.iter() {
                 let generation = generation?;

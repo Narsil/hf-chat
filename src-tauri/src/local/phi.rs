@@ -23,14 +23,14 @@ fn tokenizer(api: &Api) -> Result<Tokenizer, Error> {
     Ok(Tokenizer::from_file(tokenizer_filename)?)
 }
 
-fn get_model(api: &Api) -> Result<QMixFormer, Error> {
+fn get_model(api: &Api, device: &Device) -> Result<QMixFormer, Error> {
     let model_id = "lmz/candle-quantized-phi".to_string();
     let repo = api.repo(Repo::new(model_id, RepoType::Model));
     info!("Getting phi model");
     let filename = repo.get("model-q4k.gguf")?;
     info!("Got phi model");
     let config = Config::v1_5();
-    let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(&filename)?;
+    let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(&filename, &device)?;
     let model = QMixFormer::new(&config, vb)?;
     Ok(model)
 }
@@ -38,7 +38,7 @@ fn get_model(api: &Api) -> Result<QMixFormer, Error> {
 pub fn load_local(query: Query, device: Device, cache: &Cache) -> Result<Pipeline, Error> {
     let api = hf_hub::api::sync::ApiBuilder::from_cache(cache.clone()).build()?;
     let tokenizer = tokenizer(&api)?;
-    let model = get_model(&api)?;
+    let model = get_model(&api, &device)?;
     let encoded = tokenizer.encode(query.inputs.clone(), true)?;
     let tokens: Vec<u32> = encoded.get_ids().to_vec();
     let logits_processor = LogitsProcessor::new(
