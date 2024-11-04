@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "hf-chat",
+  "version": "0.1.0",
+  "identifier": "com.hf-chat.app",
+  "build": {
+    "beforeDevCommand": "npx tailwindcss -i ./input.css -o ./styles.css && trunk serve",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "trunk build",
+    "frontendDist": "../dist"
+  },
+  "plugins": {
+    "fs": {
+      "scope": ["$APPDATA/**"]
+    }
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "hf-chat",
+        "width": 800,
+        "height": 600
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self' asset:",
+        "connect-src": "tauri: ipc: http://ipc.localhost",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "style-src": "'self'",
+        "script-src": "'wasm-unsafe-eval'"
+      },
+      "assetProtocol": {
+          "enable": true,
+          "scope": ["$APPDATA/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "iOS": {
+        "developmentTeam": "2EADP68M95"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

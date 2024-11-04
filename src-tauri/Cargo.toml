@@ -1,0 +1,35 @@
+[package]
+name = "hf-chat"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "hf_chat_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = ["config-json5"] }
+
+[dependencies]
+tauri = { version = "2", features = [ "protocol-asset", "config-json5", "devtools"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-log = "2"
+log = "0.4.22"
+sea-orm = { version = "1.1.0", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+sea-orm-migration = { version = "1.1.0", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+hf-hub = { version = "0.3.2", features = ["tokio"] }
+thiserror = "1.0.65"
+chrono = "0.4.38"
+openidconnect = "3.5.0"
+reqwest = "0.11.27"
+tokio = "1.41.0"
+tauri-plugin-fs = "2"
