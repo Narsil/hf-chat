@@ -3,7 +3,7 @@ use leptos::*;
 #[component]
 pub fn Loading() -> impl IntoView {
     view! {
-        <div class="flex items-center justify-center w-56 h-56 border border-gray-200  bg-gray-50 dark:bg-gray-800 dark:border-gray-700 w-full h-screen">
+        <div class="flex items-center justify-center w-56 h-56 border border-gray-200  dark:border-gray-700 w-full h-screen">
             <div role="status">
                 <svg
                     aria-hidden="true"

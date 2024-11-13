@@ -10,7 +10,6 @@ use wasm_bindgen::prelude::*;
 struct Model {
     id: u32,
     name: String,
-    endpoint: String,
     profile: String,
 }
 
@@ -26,6 +25,7 @@ where
     U: FnMut(u32) -> () + 'static + Clone,
 {
     let (models, set_models) = create_signal(vec![]);
+    let (show, set_show) = create_signal(true);
     let close_models = move |_| {
         set_models.set(vec![]);
     };
@@ -41,11 +41,62 @@ where
     };
     // let profile = convert_file_src("profiles/Llama-3.1-8B-Instruct.png", "asset");
     view! {
-        <div class="min-w-[480px] border-e-2 dark:border-gray-800 min-h-screen">
+        {move || {
+            if show.get() {
+                view! { <div /> }
+            } else {
+                view! {
+                    <div
+                        class="lg:hidden text-gray-500 dark:text-gray-400 p-5 absolute top-0 left-0"
+                        on:click=move |_| {
+                            set_show
+                                .update(|s| {
+                                    *s = !*s;
+                                })
+                        }
+                    >
+                        <svg viewBox="0 0 10 8" width="20">
+                            <path
+                                d="M1 1h8M1 4h 8M1 7h8"
+                                stroke="currentColor"
+                                fill="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            />
+                        </svg>
+                    </div>
+                }
+            }
+        }}
+        // } else {
+        // }
+        <div
+            class="lg:max-w-[250px] lg:flex border-e-2 dark:border-gray-800 min-h-screen max-h-screen overflow-y-auto dark:text-white"
+            class:hidden=move || !show.get()
+        >
             <div class="text-center flex flex-col vertical-align">
+                <div
+                    class="lg:hidden text-gray-500 dark:text-gray-400 p-5"
+                    on:click=move |_| {
+                        set_show
+                            .update(|s| {
+                                *s = !*s;
+                            })
+                    }
+                >
+                    <svg viewBox="0 0 10 10" width="20">
+                        <path
+                            d="M1 1L9 9M1 9L9 1"
+                            stroke="currentColor"
+                            fill="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                        />
+                    </svg>
+                </div>
                 <div class="flex flex-row m-4">
 
-                    <img class="w-8 h-8 rounded-full" src=&user.profile alt="Jese image" />
+                    <img class="w-10 h-10 rounded-full" src=&user.profile alt="Jese image" />
                     <h5
                         id="drawer-body-scrolling-label"
                         class="text-base py-2.5 font-semibold text-gray-500 uppercase dark:text-gray-400 w-full"
@@ -66,16 +117,14 @@ where
                                 .iter()
                                 .enumerate()
                                 .map(|(i, conv)| {
-                                    let message = conv
-                                        .messages
-                                        .last()
-                                        .map(|m| m.content.to_string())
-                                        .unwrap_or("Empty".to_string());
+                                    let message = conv.title.clone();
                                     let mut value = on_select_conv.clone();
                                     let onclick = move |ev: MouseEvent| {
                                         ev.prevent_default();
+                                        set_show.set(false);
                                         value(i);
                                     };
+                                    // Only useful on mobile
 
                                     view! {
                                         <li on:click=onclick>
@@ -107,15 +156,17 @@ where
                             let suggestions = models
                                 .iter()
                                 .map(|model| {
-                                    let profile = convert_file_src(
-                                        &model.profile,
-                                        "asset",
-                                    );
+                                    let profile = convert_file_src(&model.profile, "asset");
                                     let mut value = create_conv.clone();
                                     let model_id = model.id.clone();
 
                                     view! {
-                                        <li class="flex flex-row text-white hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium text-sm px-5 py-2.5 me-2 mb-2 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700 w-full" on:click=move |_| {value(model_id);}>
+                                        <li
+                                            class="flex flex-row text-white hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium text-sm px-5 py-2.5 me-2 mb-2 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700 w-full"
+                                            on:click=move |_| {
+                                                value(model_id);
+                                            }
+                                        >
                                             <img
                                                 class="w-8 h-8 rounded-full"
                                                 src=&profile

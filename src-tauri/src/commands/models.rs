@@ -1,4 +1,7 @@
-use crate::{entities::model, State};
+use crate::{
+    entities::{model, user},
+    State,
+};
 use ::reqwest::{header::AUTHORIZATION, Client};
 use chrono::{DateTime, TimeDelta, Utc};
 use hf_hub::{
@@ -105,20 +108,47 @@ async fn create_profile(name: &str, cache: &Cache) -> Result<String, Error> {
         .expect("Path conversion"))
 }
 
+#[derive(Serialize)]
+pub struct ModelItem {
+    id: u32,
+    name: String,
+    profile: String,
+}
+
 #[tauri::command]
-pub async fn get_models(state: tauri::State<'_, State>) -> Result<Vec<model::Model>, Error> {
+pub async fn get_models(state: tauri::State<'_, State>) -> Result<Vec<ModelItem>, Error> {
     debug!("Fetching models");
-    let models = model::Entity::find().all(&state.db).await?;
-    if !models.is_empty() {
+    let models = model::Entity::find()
+        .find_also_related(user::Entity)
+        .all(&state.db)
+        .await?;
+    let models = if !models.is_empty() {
         debug!("Got {} cached models", models.len());
-        return Ok(models);
-    }
-    suggest_models(&state.cache, &state.db).await?;
-    let models = model::Entity::find().all(&state.db).await?;
+        models
+    } else {
+        suggest_models(&state.cache, &state.db).await?;
+        let models = model::Entity::find()
+            .find_also_related(user::Entity)
+            .all(&state.db)
+            .await?;
+        models
+    };
+
     if models.is_empty() {
         return Err(Error::NoModels);
     }
 
+    let models = models
+        .into_iter()
+        .map(|(m, ou)| {
+            let u = ou.expect("User for model");
+            ModelItem {
+                id: m.id,
+                name: u.name,
+                profile: u.profile,
+            }
+        })
+        .collect();
     return Ok(models);
 }
 
@@ -177,9 +207,14 @@ pub async fn suggest_models(cache: &Cache, db: &DatabaseConnection) -> Result<()
         if let Ok((i, profile)) = res {
             match profile {
                 Ok(profile) => {
-                    let model = model::ActiveModel {
+                    let user = user::ActiveModel {
                         name: Set(models[i].name.clone()),
                         profile: Set(profile),
+                        ..Default::default()
+                    };
+                    let user: user::Model = user.insert(db).await?;
+                    let model = model::ActiveModel {
+                        user_id: Set(user.id),
                         endpoint: Set(format!(
                             "https://api-inference.huggingface.co/models/{}/v1/chat/completions",
                             models[i].full_name

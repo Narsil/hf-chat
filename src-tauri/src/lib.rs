@@ -2,13 +2,14 @@ mod commands;
 mod entities;
 pub mod migrations;
 
+use crate::commands::api::Stream;
 use crate::commands::login::Openid;
 use hf_hub::Cache;
 use log::{debug, info, warn};
 use sea_orm::{Database, DatabaseConnection};
 use std::path::Path;
-use std::sync::Mutex;
 use tauri::Manager;
+use tokio::sync::Mutex;
 
 struct State {
     db: DatabaseConnection,
@@ -16,6 +17,7 @@ struct State {
     // device: Device,
     openid: Mutex<Option<Openid>>,
     // tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    stream: Mutex<Option<Stream>>,
 }
 
 fn cache(path: &Path) -> Cache {
@@ -62,14 +64,9 @@ pub fn run() {
             commands::login::login_callback,
             commands::models::get_models,
             commands::conversation::create_conversation,
-            // conversation,
-            // load_conversation,
-            // generate,
-            // stop,
-            // settings,
-            // login,
-            // login_callback,
-            // logout,
+            commands::conversation::new_message,
+            commands::conversation::get_messages,
+            commands::api::get_chunk,
         ])
         .setup(move |app| {
             info!("Start the run");
@@ -110,6 +107,7 @@ pub fn run() {
                 cache,
                 // device,
                 openid: Mutex::new(None),
+                stream: Mutex::new(None),
                 // tx: Mutex::new(None),
             });
             // if let Some(setup) = setup {

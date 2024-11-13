@@ -2,6 +2,7 @@ mod app;
 mod conversation;
 mod loading;
 mod login;
+mod message;
 mod nav;
 mod state;
 

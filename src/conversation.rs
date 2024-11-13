@@ -1,111 +1,66 @@
-use crate::state::{Conversation, Message};
+use crate::invoke;
+use crate::loading::Loading;
+use crate::message::{Message, Msg};
+use crate::state::{Message as DbMsg, User};
+use chrono::Utc;
 use leptos::leptos_dom::ev::SubmitEvent;
+use leptos::logging::log;
 use leptos::*;
+use serde::{Deserialize, Serialize};
 
-impl Message {
-    fn render(&self) -> impl IntoView {
-        // let is_me = self.author.is_me;
-        let is_me = false;
-        view! {
-            <div class="flex items-start m-5 gap-2.5" class:flex-row-reverse=move || is_me>
-                <img class="w-8 h-8 rounded-full" src=&self.author.profile alt="Jese image" />
-                <div class="flex flex-col gap-1 w-full max-w-[320px]">
-                    <div class="flex items-center space-x-2 rtl:space-x-reverse">
-                        <span class="text-sm font-semibold text-gray-900 dark:text-white">
-                            {&self.author.name}
-                        </span>
-                        <span class="text-sm font-normal text-gray-500 dark:text-gray-400">
-                            11:46
-                        </span>
-                    </div>
-                    <div class="flex flex-col leading-1.5 p-4 border-gray-200 bg-gray-100 rounded-e-xl rounded-es-xl dark:bg-gray-700">
-                        <p class="text-sm font-normal text-gray-900 dark:text-white">
-                            {&self.content}
-                        </p>
-                    </div>
-                    <span class="text-sm invisible font-normal text-gray-500 dark:text-gray-400">
-                        Delivered
-                    </span>
-                </div>
-                <button
-                    id="dropdownMenuIconButton"
-                    data-dropdown-toggle="dropdownDots"
-                    data-dropdown-placement="bottom-start"
-                    class="inline-flex self-center items-center p-2 text-sm font-medium text-center text-gray-900 bg-white rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none dark:text-white focus:ring-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus:ring-gray-600"
-                    type="button"
-                >
-                    <svg
-                        class="w-4 h-4 text-gray-500 dark:text-gray-40 invisible hover:visible 0"
-                        aria-hidden="true"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="currentColor"
-                        viewBox="0 0 4 15"
-                    >
-                        <path d="M3.5 1.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6.041a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 5.959a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
-                    </svg>
-                </button>
-                <div
-                    id="dropdownDots"
-                    class="z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-40 dark:bg-gray-700 dark:divide-gray-600"
-                >
-                    <ul
-                        class="py-2 text-sm text-gray-700 dark:text-gray-200"
-                        aria-labelledby="dropdownMenuIconButton"
-                    >
-                        <li>
-                            <a
-                                href="#"
-                                class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
-                            >
-                                Reply
-                            </a>
-                        </li>
-                        <li>
-                            <a
-                                href="#"
-                                class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
-                            >
-                                Forward
-                            </a>
-                        </li>
-                        <li>
-                            <a
-                                href="#"
-                                class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
-                            >
-                                Copy
-                            </a>
-                        </li>
-                        <li>
-                            <a
-                                href="#"
-                                class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
-                            >
-                                Report
-                            </a>
-                        </li>
-                        <li>
-                            <a
-                                href="#"
-                                class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
-                            >
-                                Delete
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        }
-    }
+#[derive(Serialize, Deserialize)]
+struct GetMessages {
+    conversationid: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct NewMessage {
+    conversationid: u32,
+    content: String,
+    authorid: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Query {
+    conversationid: u32,
 }
 
 #[component]
-pub fn Conversation(
-    conversation: Conversation,
-    // #[prop(into)] conversation: Signal<Conversation>,
-    // mut on_message: T,
-) -> impl IntoView {
+pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl IntoView {
+    let me_user = users.iter().find(|user| user.id == me).expect("Me").clone();
     let (message, set_message) = create_signal(String::new());
+    let messages = create_resource(
+        move || (),
+        move |_| {
+            let users = users.clone();
+            async move {
+                let args = serde_wasm_bindgen::to_value(&GetMessages { conversationid }).unwrap();
+                let value = invoke("get_messages", args).await;
+                let messages: Vec<DbMsg> =
+                    serde_wasm_bindgen::from_value(value).expect("Correct conversations");
+
+                let messages: Vec<_> = messages
+                    .into_iter()
+                    .map(|message| {
+                        let is_me = message.user_id == me;
+                        let user_id = message.user_id;
+                        let user = users
+                            .iter()
+                            .find(|u| u.id == user_id)
+                            .expect("User id")
+                            .clone();
+                        Msg {
+                            created_at: message.created_at,
+                            content: message.content,
+                            user,
+                            is_me,
+                        }
+                    })
+                    .collect();
+                messages
+            }
+        },
+    );
 
     let update_message = move |ev| {
         let v = event_target_value(&ev);
@@ -113,21 +68,87 @@ pub fn Conversation(
     };
     let send_message = move |ev: SubmitEvent| {
         ev.prevent_default();
-        // on_message(message.get());
-        set_message.set(String::new());
-    };
+        let content = message.get();
+        let me_clone = me_user.clone();
+        spawn_local(async move {
+            let args = serde_wasm_bindgen::to_value(&NewMessage {
+                conversationid,
+                content,
+                authorid: me,
+            })
+            .unwrap();
+            invoke("new_message", args).await;
 
-    let messages = move || {
-        conversation
-            .messages
-            .iter()
-            .map(|message| message.render())
-            .collect::<Vec<_>>()
+            let args = Query { conversationid };
+            loop {
+                log!("Invoking get_chunk");
+                let arg = serde_wasm_bindgen::to_value(&args).unwrap();
+                let res = invoke("get_chunk", arg).await;
+                let chunk: Option<String> = serde_wasm_bindgen::from_value(res).expect("Chunk");
+                if let Some(chunk) = chunk {
+                    messages.update(|messages| {
+                        messages.as_mut().map(|messages| {
+                            if let Some(message) = messages.last_mut() {
+                                if !message.is_me {
+                                    message.content.push_str(&chunk);
+                                } else {
+                                    messages.push(Msg {
+                                        created_at: Utc::now(),
+                                        user: me_clone.clone(),
+                                        is_me: false,
+                                        content: chunk,
+                                    })
+                                }
+                            } else {
+                                messages.push(Msg {
+                                    created_at: Utc::now(),
+                                    user: me_clone.clone(),
+                                    is_me: false,
+                                    content: chunk,
+                                })
+                            }
+                        });
+                    });
+                } else {
+                    break;
+                }
+            }
+        });
+        messages.update(|messages| {
+            messages.as_mut().map(|messages| {
+                messages.push(Msg {
+                    created_at: Utc::now(),
+                    user: me_user.clone(),
+                    is_me: true,
+                    content: message.get(),
+                })
+            });
+        });
+        set_message.set(String::new());
     };
 
     view! {
         <div class="h-screen grow flex flex-col scrollbar">
-            <main class="grow overflow-auto max-h-screen">{messages}</main>
+            <main class="grow overflow-auto max-h-screen">
+                <Suspense fallback=move || {
+                    view! { <Loading /> }
+                }>
+                    {move || {
+                        messages
+                            .get()
+                            .map(|messages| {
+                                messages
+                                    .into_iter()
+                                    .map(|message| {
+
+                                        view! { <Message message=message /> }
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                    }}
+                </Suspense>
+
+            </main>
             <form class="w-full" on:submit=send_message>
                 <label for="chat" class="sr-only">
                     Your message

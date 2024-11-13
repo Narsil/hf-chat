@@ -5,6 +5,7 @@ use crate::entities::user;
 use crate::State;
 use log::info;
 use sea_orm::EntityTrait;
+use sea_orm::QueryOrder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
@@ -55,6 +56,7 @@ impl serde::Serialize for Error {
 pub struct Load {
     conversations: Vec<Conversation>,
     user: Option<user::Model>,
+    users: Vec<user::Model>,
 }
 
 #[tauri::command]
@@ -62,15 +64,18 @@ pub async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
     let db = &state.db;
     let conversations: Vec<(conversation::Model, Vec<message::Model>)> =
         conversation::Entity::find()
+            .order_by_desc(conversation::Column::CreatedAt)
             .find_with_related(message::Entity)
             .all(db)
             .await?;
-    let conversations = conversations.into_iter().map(Conversation::from).collect();
-    let user = user::Entity::find().one(db).await?;
+    let conversations: Vec<_> = conversations.into_iter().map(Conversation::from).collect();
+    let users = user::Entity::find().all(db).await?;
+    let user = users.first().cloned();
     info!("Found user {user:?}");
     let load = Load {
         conversations,
         user,
+        users,
     };
     Ok(load)
 }

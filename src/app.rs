@@ -32,6 +32,7 @@ pub fn convert_file_src(filepath: &str, protocol: &str) -> String {
 struct Load {
     conversations: Vec<Conversation>,
     user: Option<User>,
+    users: Vec<User>,
 }
 
 #[component]
@@ -40,6 +41,8 @@ pub fn App() -> impl IntoView {
         ReadSignal<Option<Conversation>>,
         WriteSignal<Option<Conversation>>,
     ) = create_signal(None);
+
+    let (sigload, set_sigload) = create_signal(0);
 
     if let Ok(search) = window().location().search() {
         let url = url::Url::parse(&format!("http://someUrl.com{search}")).expect("Parse");
@@ -68,7 +71,7 @@ pub fn App() -> impl IntoView {
     }
 
     let load = create_resource(
-        move || conversation.get(),
+        move || sigload.get(),
         |_| async move {
             let args = JsValue::undefined();
             let value = invoke("load", args).await;
@@ -77,19 +80,6 @@ pub fn App() -> impl IntoView {
         },
     );
 
-    // let on_message = move |content: String| {
-    //     let message = Message {
-    //         content,
-    //         author: me.clone(),
-    //     };
-    //     set_conversation.update(|conv| {
-    //         if let Some(conv) = conv {
-    //             conv.messages.push(message);
-    //         } else {
-    //             log!("Invalid conversation, message lost: {message:?}");
-    //         }
-    //     });
-    // };
     let on_select_conv = move |index: usize| {
         let conversation: Option<Conversation> = load
             .get()
@@ -106,6 +96,7 @@ pub fn App() -> impl IntoView {
             let conversation =
                 serde_wasm_bindgen::from_value(conv_value).expect("Conversation created");
             set_conversation.set(conversation);
+            set_sigload.update(|sig| *sig = *sig + 1);
         });
     };
     view! {
@@ -118,7 +109,7 @@ pub fn App() -> impl IntoView {
                         .map(|load| {
                             let conversations = load.conversations;
                             if let Some(user) = load.user {
-                                view! { <Nav conversations user on_select_conv  create_conv /> }
+                                view! { <Nav conversations user on_select_conv create_conv /> }
                             } else {
                                 view! { <Login /> }
                             }
@@ -128,7 +119,19 @@ pub fn App() -> impl IntoView {
             <Suspense fallback=move || {
                 view! { <Loading /> }
             }>
-                {move || { conversation.get().map(|conversation| view! { <Conv conversation /> }) }}
+                {move || {
+                    conversation
+                        .get()
+                        .map(|conversation| {
+                            view! {
+                                <Conv
+                                    conversationid=conversation.id
+                                    me=(move || load.get().unwrap().user.unwrap().id)()
+                                    users=(move || load.get().unwrap().users)()
+                                />
+                            }
+                        })
+                }}
             </Suspense>
         </div>
     }

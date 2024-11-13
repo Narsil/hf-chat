@@ -18,17 +18,15 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    // .col(ColumnDef::new(Model::UserId).uuid())
-                    // .foreign_key(
-                    //     sea_query::ForeignKey::create()
-                    //         .name("fk-model-user_id")
-                    //         .from(Model::Table, Model::UserId)
-                    //         .to(User::Table, User::Id)
-                    //         .on_delete(ForeignKeyAction::Cascade)
-                    //         .on_update(ForeignKeyAction::Cascade),
-                    // )
-                    .col(ColumnDef::new(Model::Profile).string().not_null())
-                    .col(ColumnDef::new(Model::Name).string().not_null())
+                    .col(ColumnDef::new(Model::UserId).integer().not_null())
+                    .foreign_key(
+                        sea_query::ForeignKey::create()
+                            .name("fk-model-user_id")
+                            .from(Model::Table, Model::UserId)
+                            .to(User::Table, User::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
                     .col(ColumnDef::new(Model::Endpoint).string().not_null())
                     .col(ColumnDef::new(Model::Parameters).json().not_null())
                     .to_owned(),
@@ -48,14 +46,13 @@ impl MigrationTrait for Migration {
 enum Model {
     Table,
     Id,
-    // UserId,
-    Profile,
-    Name,
+    UserId,
     Endpoint,
     Parameters,
 }
-// #[derive(DeriveIden)]
-// enum User {
-//     Table,
-//     Id,
-// }
+
+#[derive(DeriveIden)]
+enum User {
+    Table,
+    Id,
+}

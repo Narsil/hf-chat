@@ -8,7 +8,7 @@ use openidconnect::{
     PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, RequestTokenError, Scope,
     StandardErrorResponse, TokenResponse,
 };
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set};
 use std::io::Write;
 
 static OPENID_SECRET: Option<&'static str> = option_env!("OPENID_SECRET");

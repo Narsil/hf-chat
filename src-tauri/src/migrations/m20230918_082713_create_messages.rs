@@ -19,7 +19,7 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(Message::Content).string().not_null())
-                    .col(ColumnDef::new(Message::UserId).uuid())
+                    .col(ColumnDef::new(Message::UserId).integer().not_null())
                     .foreign_key(
                         sea_query::ForeignKey::create()
                             .name("fk-message-user_id")
@@ -28,7 +28,7 @@ impl MigrationTrait for Migration {
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
-                    .col(ColumnDef::new(Message::ConversationId).uuid().not_null())
+                    .col(ColumnDef::new(Message::ConversationId).integer().not_null())
                     .foreign_key(
                         sea_query::ForeignKey::create()
                             .name("fk-message-conversation_id")
