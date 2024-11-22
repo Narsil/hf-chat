@@ -1,5 +1,5 @@
 use crate::state::{Conversation, User};
-use crate::{convert_file_src, invoke};
+use crate::{asset, invoke};
 use ev::MouseEvent;
 use leptos::logging::log;
 use leptos::*;
@@ -39,7 +39,6 @@ where
             set_models.set(models);
         });
     };
-    // let profile = convert_file_src("profiles/Llama-3.1-8B-Instruct.png", "asset");
     view! {
         {move || {
             if show.get() {
@@ -71,10 +70,10 @@ where
         // } else {
         // }
         <div
-            class="lg:max-w-[250px] lg:flex border-e-2 dark:border-gray-800 min-h-screen max-h-screen overflow-y-auto dark:text-white"
+            class="lg:w-1/5 w-full lg:flex border-e-2 dark:border-gray-800 min-h-dvh max-h-dvh overflow-y-auto dark:text-white"
             class:hidden=move || !show.get()
         >
-            <div class="text-center flex flex-col vertical-align">
+            <div class="text-center w-full flex flex-col vertical-align">
                 <div
                     class="lg:hidden text-gray-500 dark:text-gray-400 p-5"
                     on:click=move |_| {
@@ -103,12 +102,13 @@ where
                     >
                         Chat
                     </h5>
-                    <button
-                        type="button"
-                        class="text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700"
-                    >
-                        +
-                    </button>
+
+                // <button
+                // type="button"
+                // class="text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700"
+                // >
+                // +
+                // </button>
                 </div>
                 <div class="py-4 overflow-y-auto grow">
                     <ul class="space-y-2 font-medium">
@@ -119,6 +119,7 @@ where
                                 .map(|(i, conv)| {
                                     let message = conv.title.clone();
                                     let mut value = on_select_conv.clone();
+                                    let profile = asset(&conv.profile);
                                     let onclick = move |ev: MouseEvent| {
                                         ev.prevent_default();
                                         set_show.set(false);
@@ -132,16 +133,11 @@ where
                                                 href="#"
                                                 class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group"
                                             >
-                                                <svg
-                                                    class="w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white"
-                                                    aria-hidden="true"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    fill="currentColor"
-                                                    viewBox="0 0 22 21"
-                                                >
-                                                    <path d="M16.975 11H10V4.025a1 1 0 0 0-1.066-.998 8.5 8.5 0 1 0 9.039 9.039.999.999 0 0 0-1-1.066h.002Z" />
-                                                    <path d="M12.5 0c-.157 0-.311.01-.565.027A1 1 0 0 0 11 1.02V10h8.975a1 1 0 0 0 1-.935c.013-.188.028-.374.028-.565A8.51 8.51 0 0 0 12.5 0Z" />
-                                                </svg>
+                                                <img
+                                                    class="w-8 h-8 rounded-full"
+                                                    src=&profile
+                                                    alt="Jese image"
+                                                />
                                                 <span class="ms-3">{message}</span>
                                             </a>
                                         </li>
@@ -156,13 +152,13 @@ where
                             let suggestions = models
                                 .iter()
                                 .map(|model| {
-                                    let profile = convert_file_src(&model.profile, "asset");
+                                    let profile = asset(&model.profile);
                                     let mut value = create_conv.clone();
                                     let model_id = model.id.clone();
 
                                     view! {
                                         <li
-                                            class="flex flex-row text-white hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium text-sm px-5 py-2.5 me-2 mb-2 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700 w-full"
+                                            class="flex flex-row dark:text-white text-black hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium text-sm px-5 py-2.5 me-2 mb-2 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700 w-full"
                                             on:click=move |_| {
                                                 value(model_id);
                                             }

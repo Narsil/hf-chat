@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.hf-chat.app",
   "build": {
-    "beforeDevCommand": "npx tailwindcss -i ./input.css -o ./styles.css && trunk serve",
+    "beforeDevCommand": "trunk serve",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "trunk build",
     "frontendDist": "../dist"
@@ -27,9 +27,9 @@
       "csp": {
         "default-src": "'self' asset:",
         "connect-src": "tauri: ipc: http://ipc.localhost",
-        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "img-src": "'self' asset: http://asset.localhost blob: data: https:",
         "style-src": "'self'",
-        "script-src": "'wasm-unsafe-eval'"
+        "script-src": "'wasm-unsafe-eval' 'unsafe-inline'"
       },
       "assetProtocol": {
           "enable": true,

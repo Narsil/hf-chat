@@ -15,6 +15,22 @@ extern "C" {
 
     #[wasm_bindgen(js_namespace = ["window", "__TAURI_INTERNALS__"])]
     fn convertFileSrc(filepath: &str, protocol: &str) -> JsValue;
+
+
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "log"])]
+    pub async fn trace(log: &str);
+
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "log"])]
+    pub async fn debug(log: &str);
+
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "log"])]
+    pub async fn info(log: &str);
+
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "log"])]
+    pub async fn warn(log: &str);
+
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "log"])]
+    pub async fn error(log: &str);
 }
 
 #[derive(Serialize, Deserialize)]
@@ -22,10 +38,13 @@ struct CreateConversation {
     modelid: u32,
 }
 
-pub fn convert_file_src(filepath: &str, protocol: &str) -> String {
-    log!("File {filepath:?}");
-    let value = convertFileSrc(filepath, protocol);
-    serde_wasm_bindgen::from_value(value).expect("Convertion")
+pub fn asset(filepath: &str) -> String {
+    if filepath.starts_with('/') {
+        let value = convertFileSrc(filepath, "asset");
+        serde_wasm_bindgen::from_value(value).expect("Convertion")
+    } else {
+        filepath.to_owned()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,6 +146,7 @@ pub fn App() -> impl IntoView {
                                 <Conv
                                     conversationid=conversation.id
                                     me=(move || load.get().unwrap().user.unwrap().id)()
+                                    model=conversation.user_id
                                     users=(move || load.get().unwrap().users)()
                                 />
                             }

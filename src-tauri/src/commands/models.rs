@@ -12,7 +12,6 @@ use log::{debug, error, info};
 use sea_orm::{prelude::*, ActiveValue::Set};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use tokio::task::JoinSet;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -188,7 +187,7 @@ pub async fn suggest_models(cache: &Cache, db: &DatabaseConnection) -> Result<()
                 Some(ModelSuggestion {
                     name,
                     full_name: model_id,
-                    profile: "".to_string(),
+                    profile: "public/default_profile.png".to_string(),
                     // parameters: safetensors.total,
                 })
             } else {
@@ -197,36 +196,43 @@ pub async fn suggest_models(cache: &Cache, db: &DatabaseConnection) -> Result<()
         })
         .collect();
 
-    let mut set = JoinSet::new();
-    for (i, model) in models.iter().enumerate() {
-        let name = model.name.clone();
+    for sugg in models {
+        let user = user::ActiveModel {
+            name: Set(sugg.name.clone()),
+            profile: Set(sugg.profile.clone()),
+            ..Default::default()
+        };
+        let user: user::Model = user.insert(db).await?;
+        let model = model::ActiveModel {
+            user_id: Set(user.id),
+            endpoint: Set(format!(
+                "https://api-inference.huggingface.co/models/{}/v1/chat/completions",
+                sugg.full_name
+            )),
+            parameters: Set(model::Parameters::default()),
+            ..Default::default()
+        };
+        model.insert(db).await.unwrap();
+        let name = sugg.name.clone();
         let cache = cache.clone();
-        set.spawn(async move { (i, create_profile(&name, &cache).await) });
+
+        let db_clone = db.clone();
+        tokio::spawn(async move {
+            let profile = create_profile(&name, &cache)
+                .await
+                .expect("Creating profile");
+            let user: user::Model = user::Entity::find_by_id(user.id)
+                .one(&db_clone)
+                .await
+                .expect("Valid query")
+                .expect("Model user for profile");
+            // Into ActiveModel
+            let mut user: user::ActiveModel = user.into();
+            // Update name attribute
+            user.profile = Set(profile);
+            user.update(&db_clone).await.expect("Profile update");
+        });
     }
-    while let Some(res) = set.join_next().await {
-        if let Ok((i, profile)) = res {
-            match profile {
-                Ok(profile) => {
-                    let user = user::ActiveModel {
-                        name: Set(models[i].name.clone()),
-                        profile: Set(profile),
-                        ..Default::default()
-                    };
-                    let user: user::Model = user.insert(db).await?;
-                    let model = model::ActiveModel {
-                        user_id: Set(user.id),
-                        endpoint: Set(format!(
-                            "https://api-inference.huggingface.co/models/{}/v1/chat/completions",
-                            models[i].full_name
-                        )),
-                        parameters: Set(model::Parameters::default()),
-                        ..Default::default()
-                    };
-                    model.insert(db).await.unwrap();
-                }
-                Err(err) => error!("Failed to fetch profile {err:?}"),
-            }
-        }
-    }
+
     Ok(())
 }

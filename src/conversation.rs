@@ -4,7 +4,6 @@ use crate::message::{Message, Msg};
 use crate::state::{Message as DbMsg, User};
 use chrono::Utc;
 use leptos::leptos_dom::ev::SubmitEvent;
-use leptos::logging::log;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 
@@ -26,8 +25,13 @@ struct Query {
 }
 
 #[component]
-pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl IntoView {
+pub fn Conversation(conversationid: u32, me: u32, model: u32, users: Vec<User>) -> impl IntoView {
     let me_user = users.iter().find(|user| user.id == me).expect("Me").clone();
+    let other = users
+        .iter()
+        .find(|user| user.id == model)
+        .expect("Other")
+        .clone();
     let (message, set_message) = create_signal(String::new());
     let messages = create_resource(
         move || (),
@@ -69,7 +73,7 @@ pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl Into
     let send_message = move |ev: SubmitEvent| {
         ev.prevent_default();
         let content = message.get();
-        let me_clone = me_user.clone();
+        let other = other.clone();
         spawn_local(async move {
             let args = serde_wasm_bindgen::to_value(&NewMessage {
                 conversationid,
@@ -81,7 +85,6 @@ pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl Into
 
             let args = Query { conversationid };
             loop {
-                log!("Invoking get_chunk");
                 let arg = serde_wasm_bindgen::to_value(&args).unwrap();
                 let res = invoke("get_chunk", arg).await;
                 let chunk: Option<String> = serde_wasm_bindgen::from_value(res).expect("Chunk");
@@ -94,7 +97,7 @@ pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl Into
                                 } else {
                                     messages.push(Msg {
                                         created_at: Utc::now(),
-                                        user: me_clone.clone(),
+                                        user: other.clone(),
                                         is_me: false,
                                         content: chunk,
                                     })
@@ -102,7 +105,7 @@ pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl Into
                             } else {
                                 messages.push(Msg {
                                     created_at: Utc::now(),
-                                    user: me_clone.clone(),
+                                    user: other.clone(),
                                     is_me: false,
                                     content: chunk,
                                 })
@@ -128,8 +131,8 @@ pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl Into
     };
 
     view! {
-        <div class="h-screen grow flex flex-col scrollbar">
-            <main class="grow overflow-auto max-h-screen">
+        <div class="h-dvh max-h-dvh grow flex flex-col scrollbar lg:w-4/5 w-screen max-w-screen">
+            <main class="grow flex flex-col-reverse overflow-auto max-h-screen">
                 <Suspense fallback=move || {
                     view! { <Loading /> }
                 }>
@@ -139,6 +142,7 @@ pub fn Conversation(conversationid: u32, me: u32, users: Vec<User>) -> impl Into
                             .map(|messages| {
                                 messages
                                     .into_iter()
+                                    .rev()
                                     .map(|message| {
 
                                         view! { <Message message=message /> }

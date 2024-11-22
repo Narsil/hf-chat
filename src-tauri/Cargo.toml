@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = ["config-json5"] }
 
 [dependencies]
-tauri = { version = "2", features = [ "protocol-asset", "config-json5", "devtools"] }
+tauri = { version = "2", features = [ "protocol-asset", "config-json5", "devtools", "rustls-tls"] }
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -26,10 +26,10 @@ tauri-plugin-log = "2"
 log = "0.4.22"
 sea-orm = { version = "1.1.0", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 sea-orm-migration = { version = "1.1.0", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
-hf-hub = { version = "0.3.2", features = ["tokio"] }
+hf-hub = { path = "../../hf-hub", default-features = false, features = ["tokio-rustls"] }
 thiserror = "1.0.65"
 chrono = "0.4.38"
 openidconnect = "3.5.0"
-reqwest = "0.11.27"
+reqwest = {version = "0.12", default-features = false }
 tokio = "1.41.0"
 tauri-plugin-fs = "2"

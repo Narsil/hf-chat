@@ -9,6 +9,7 @@
     "core:default",
     "shell:allow-open",
     "log:default",
+    "fs:allow-appdata-write-recursive",
     "fs:default"
   ]
 }

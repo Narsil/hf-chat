@@ -1,12 +1,15 @@
-use crate::entities::{conversation, message, model};
+use crate::entities::{conversation, message, model, user};
 use crate::State;
 use ::reqwest::{
     header::{AUTHORIZATION, CONTENT_TYPE},
     Response,
 };
+use chrono::Utc;
 use core::str;
 use log::info;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
@@ -42,8 +45,8 @@ pub enum Role {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
-    role: Role,
-    content: String,
+    pub role: Role,
+    pub content: String,
 }
 
 impl Message {
@@ -104,14 +107,16 @@ pub struct Stream {
     leftover: Vec<u8>,
 }
 
-async fn query(url: String, messages: Vec<Message>) -> Result<Stream, Error> {
+pub async fn query(url: String, messages: Vec<Message>) -> Result<Stream, Error> {
+    info!("Query {url} {} messages", messages.len());
     let client = ::reqwest::Client::new();
     let cache = hf_hub::Cache::default();
     let token = cache.token().expect("Expected token");
+    info!("Got token {token:?}");
     let model = "tgi".to_string();
 
     let stream = true;
-    let max_tokens = 200;
+    let max_tokens = 1024;
     let temperature = 0.0;
     let payload = Payload {
         model,
@@ -128,6 +133,7 @@ async fn query(url: String, messages: Vec<Message>) -> Result<Stream, Error> {
         .json(&payload)
         .send()
         .await?;
+    info!("Client response received");
     let res = res.error_for_status()?;
     return Ok(Stream {
         res,
@@ -136,7 +142,7 @@ async fn query(url: String, messages: Vec<Message>) -> Result<Stream, Error> {
 }
 
 impl Stream {
-    async fn next(&mut self) -> Result<Option<String>, Error> {
+    pub async fn next(&mut self) -> Result<Option<String>, Error> {
         if let Some(chunk) = self.res.chunk().await? {
             let mut content = String::new();
 
@@ -145,18 +151,24 @@ impl Stream {
                     self.leftover.extend(subchunk);
                     subchunk = &self.leftover[..];
                 }
-                if subchunk.starts_with(b"data: ") {
+                if subchunk.is_empty() {
+                    // Do nothing
+                } else if subchunk.starts_with(b"data: ") {
                     if subchunk == b"data: [DONE]" {
                         continue;
                     }
                     if let Ok(parsed) =
                         serde_json::from_slice::<Chunk>(&subchunk[b"data: ".len()..])
                     {
-                        content.push_str(&parsed.choices[0].delta.content);
+                        let msg = &parsed.choices[0].delta.content;
+                        info!("Msg {msg:?}");
+                        content.push_str(msg);
                     } else {
                         let owned = subchunk.to_owned();
                         self.leftover.extend(owned);
                     }
+                } else {
+                    todo!("Odd event {subchunk:?}");
                 }
             }
             Ok(Some(content))
@@ -171,33 +183,69 @@ pub async fn get_chunk(
     state: tauri::State<'_, State>,
     conversationid: u32,
 ) -> Result<Option<String>, Error> {
+    info!("Getting chunk");
+    let db = &state.db;
+    let (_conversation, model): (conversation::Model, Option<model::Model>) =
+        conversation::Entity::find_by_id(conversationid)
+            .find_also_related(model::Entity)
+            .one(db)
+            .await?
+            .ok_or(Error::MissingConversation(conversationid))?;
+    let model = model.expect("Associated model");
     let mut stream = state.stream.lock().await;
+    info!("Locked stream");
     let chunk = if let Some(ref mut stream) = &mut *stream {
+        info!("Awaiting chunk");
         stream.next().await?
     } else {
-        let db = &state.db;
-        let (_conversation, model): (conversation::Model, Option<model::Model>) =
-            conversation::Entity::find_by_id(conversationid)
-                .find_also_related(model::Entity)
-                .one(db)
-                .await?
-                .ok_or(Error::MissingConversation(conversationid))?;
         let messages: Vec<message::Model> = message::Entity::find()
             .filter(message::Column::ConversationId.eq(conversationid))
             .all(db)
             .await?;
 
         let messages = Message::from_db(messages);
-        info!("Sending messages {messages:?}");
-        let url = model.expect("Model").endpoint;
+        info!("Sending {} messages.", messages.len());
+        let url = model.endpoint;
+        info!("Creating new query to {url}");
         let mut newstream = query(url, messages).await?;
+        info!("Waiting for first chunk");
         let chunk = newstream.next().await.expect("chunk");
         *stream = Some(newstream);
         chunk
     };
-    // info!("Got chunk {chunk:?}");
     if chunk.is_none() {
         *stream = None;
+    }
+    drop(stream);
+    info!("Dropped stream");
+    if let Some(chunk) = &chunk {
+        let user: user::Model = user::Entity::find_by_id(model.user_id)
+            .one(db)
+            .await?
+            .expect("At least 1 message");
+        let message: message::Model = message::Entity::find()
+            .filter(message::Column::ConversationId.eq(conversationid))
+            .order_by_desc(message::Column::CreatedAt)
+            .one(db)
+            .await?
+            .expect("At least 1 message");
+        if message.user_id == user.id {
+            let content = message.content.clone();
+            let mut message: message::ActiveModel = message.into();
+            message.content = Set(format!("{}{}", content, chunk));
+            message.update(db).await?;
+        } else {
+            let now = Utc::now();
+            let message = message::ActiveModel {
+                conversation_id: Set(conversationid),
+                user_id: Set(user.id),
+                content: Set(chunk.to_string()),
+                created_at: Set(now.clone()),
+                updated_at: Set(now.clone()),
+                ..Default::default()
+            };
+            let _ = message.insert(db).await?;
+        }
     }
     Ok(chunk)
 }

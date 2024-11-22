@@ -5,7 +5,9 @@ use crate::entities::user;
 use crate::State;
 use chrono::{DateTime, Utc};
 use log::info;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
@@ -53,20 +55,22 @@ impl From<message::Model> for Message {
 pub struct Conversation {
     pub id: u32,
     pub model_id: u32,
+    pub user_id: u32,
     pub title: String,
+    pub profile: String,
     pub messages: Vec<Message>,
 }
 
-impl From<(conversation::Model, Vec<message::Model>)> for Conversation {
-    fn from((conv, messages): (conversation::Model, Vec<message::Model>)) -> Self {
-        Conversation {
-            id: conv.id,
-            model_id: conv.model_id,
-            title: conv.title,
-            messages: messages.into_iter().map(Message::from).collect(),
-        }
-    }
-}
+// impl From<(conversation::Model, Vec<message::Model>)> for Conversation {
+//     fn from((conv, messages): (conversation::Model, Vec<message::Model>)) -> Self {
+//         Conversation {
+//             id: conv.id,
+//             model_id: conv.model_id,
+//             title: conv.title,
+//             messages: messages.into_iter().map(Message::from).collect(),
+//         }
+//     }
+// }
 
 #[tauri::command]
 pub async fn create_conversation(
@@ -100,8 +104,10 @@ pub async fn create_conversation(
     let conversation = Conversation {
         id: conversation.id,
         messages,
+        profile: user.profile,
         title: conversation.title,
         model_id: conversation.model_id,
+        user_id: user.id,
     };
     Ok(conversation)
 }
@@ -122,6 +128,42 @@ pub async fn new_message(
         .one(db)
         .await?
         .ok_or(Error::MissingModel(conversationid))?;
+    let has_messages = message::Entity::find()
+        .filter(message::Column::ConversationId.eq(conversation.id))
+        .count(db)
+        .await?;
+    if has_messages == 0 {
+        let new_title = content.split(" ").take(5).collect::<Vec<&str>>().join(" ");
+        let mut conv: conversation::ActiveModel = conversation.clone().into();
+        conv.title = Set(new_title);
+        conv.update(db).await.ok();
+    }
+    //     });
+    // }
+    //     let db = state.db.clone();
+    //     let content = content.clone();
+    //     tokio::spawn(async move{
+    //         let messages = vec![api::Message{
+    //             role: api::Role::User,
+    //             content: format!("You are a summarization AI. You'll never answer a user's question directly, but instead summarize the user's request into a single short sentence of four words or less. Always start your answer with an emoji relevant to the summary. The content is `{content}`.")
+    //         }];
+    //         let url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct/v1/chat/completions";
+    //         let mut new_title = String::new();
+    //         if let Ok(mut newstream) = api::query(url.to_string(), messages).await{
+    //             while let Ok(Some(chunk)) = newstream.next().await{
+    //                 new_title.push_str(&chunk);
+
+    //             }
+    //         }
+    // if let Ok(Some(conversation)) = conversation::Entity::find_by_id(conversationid)
+    //     .one(&db)
+    //     .await{
+    //         let mut conv: conversation::ActiveModel = conversation.into();
+    //         conv.title = Set(new_title.to_string());
+    //         conv.update(&db).await.ok();
+    // }
+    //     });
+    // }
     let now = Utc::now();
     let message = message::ActiveModel {
         conversation_id: Set(conversation.id),
@@ -149,10 +191,14 @@ pub async fn get_messages(
         .one(db)
         .await?
         .ok_or(Error::MissingModel(conversationid))?;
-    info!("Got messages for conv {}", conversation.id);
     let messages: Vec<message::Model> = message::Entity::find()
         .filter(message::Column::ConversationId.eq(conversation.id))
         .all(db)
         .await?;
+    info!(
+        "Got {} messages for conv {}",
+        messages.len(),
+        conversation.id
+    );
     Ok(messages)
 }

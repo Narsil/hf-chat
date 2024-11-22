@@ -11,14 +11,16 @@ use openidconnect::{
 use sea_orm::{ActiveModelTrait, ActiveValue::Set};
 use std::io::Write;
 
-static OPENID_SECRET: Option<&'static str> = option_env!("OPENID_SECRET");
+// static OPENID_SECRET: Option<&'static str> = option_env!("OPENID_SECRET");
+static OPENID_SECRET: Option<&'static str> = Some("64d7dfec-160a-41f0-921f-ab071cf4f16f");
 
 async fn core_client() -> Result<CoreClient, OpenidError> {
     let provider_metadata = CoreProviderMetadata::discover_async(
         IssuerUrl::new("https://huggingface.co".to_string())?,
         async_http_client,
     )
-    .await?;
+    .await
+    .expect("Openid temp error");
     let client_id = if let Some(secret) = OPENID_SECRET {
         ClientId::new(secret.to_string())
     } else {
@@ -36,6 +38,7 @@ pub struct Openid {
     csrf_token: CsrfToken,
     nonce: Nonce,
     pkce_verifier: PkceCodeVerifier,
+    url: String,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -47,7 +50,9 @@ pub enum OpenidError {
     Url(#[from] openidconnect::url::ParseError),
 
     #[error("Discover error {0}")]
-    Discovery(#[from] openidconnect::DiscoveryError<openidconnect::reqwest::Error<reqwest::Error>>),
+    Discovery(
+        #[from] openidconnect::DiscoveryError<openidconnect::reqwest::Error<::reqwest::Error>>,
+    ),
 
     #[error("Signing error {0}")]
     Signing(#[from] openidconnect::SigningError),
@@ -122,6 +127,7 @@ pub async fn login(state: tauri::State<'_, State>, url: String) -> Result<String
         csrf_token,
         nonce,
         pkce_verifier,
+        url,
     });
     info!("Authentication url {auth_url}");
     Ok(auth_url.to_string())
@@ -139,6 +145,7 @@ pub async fn login_callback(
         csrf_token,
         nonce,
         pkce_verifier,
+        url,
     } = {
         let mut openid = app_state.openid.try_lock().map_err(|_| OpenidError::Lock)?;
         openid.take().ok_or(OpenidError::UnsetValidators)?
@@ -146,9 +153,9 @@ pub async fn login_callback(
 
     // Create an OpenID Connect client by specifying the client ID, client secret, authorization URL
     // and token URL.
-    let client = core_client().await?.set_redirect_uri(RedirectUrl::new(
-        "http://localhost:1420/login/callback".to_string(),
-    )?);
+    let client = core_client()
+        .await?
+        .set_redirect_uri(RedirectUrl::new(url.to_string())?);
 
     // Once the user has been redirected to the redirect URL, you'll have access to the
     // authorization code. For security reasons, your code should verify that the `state`
@@ -163,7 +170,8 @@ pub async fn login_callback(
         // Set the PKCE code verifier.
         .set_pkce_verifier(pkce_verifier)
         .request_async(async_http_client)
-        .await?;
+        .await
+        .expect("TODO token error handling");
 
     // Extract the ID token claims after verifying its authenticity and nonce.
     let id_token = token_response

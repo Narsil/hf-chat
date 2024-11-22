@@ -20,5 +20,14 @@ pub struct Message {
 pub struct Conversation {
     pub id: u32,
     pub title: String,
-    // pub messages: Vec<Message>,
+    pub profile: String,
+    pub user_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct FullConversation {
+    pub id: u32,
+    pub title: String,
+    pub model_id: u32,
+    pub messages: Vec<Message>,
 }

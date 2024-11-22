@@ -25,7 +25,6 @@
 		03CA7153B3352B5AC05E1895 /* m20230918_064025_create_conversation.rs */ = {isa = PBXFileReference; path = m20230918_064025_create_conversation.rs; sourceTree = "<group>"; };
 		04E9A9512A1C4F586B02A98A /* load.rs */ = {isa = PBXFileReference; path = load.rs; sourceTree = "<group>"; };
 		13D84C88C6EE510730DCEA43 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
-		1D4A60AAFFEC996EAC7410C9 /* m20230920_064642_create_settings.rs */ = {isa = PBXFileReference; path = m20230920_064642_create_settings.rs; sourceTree = "<group>"; };
 		2093D4AA7A2982774B7075F2 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		23F195ED620F990CA19A61A5 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		2D7BB029B7B467C21399C948 /* hf-chat_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "hf-chat_iOS.entitlements"; sourceTree = "<group>"; };
@@ -36,9 +35,11 @@
 		64FF48613A2E492CF149D426 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		8130FDDC39567EAB29A93AEC /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		841CECE108B62D2400CEFC87 /* message.rs */ = {isa = PBXFileReference; path = message.rs; sourceTree = "<group>"; };
+		86132DEF10CA827879618ABD /* api.rs */ = {isa = PBXFileReference; path = api.rs; sourceTree = "<group>"; };
 		90D2CFA1FE1C4560C975B482 /* m20230918_082713_create_messages.rs */ = {isa = PBXFileReference; path = m20230918_082713_create_messages.rs; sourceTree = "<group>"; };
 		930E2DDF71FF2C82D798FF0E /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		949CB6731B191F974F430505 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		96D35812B0C628E8802DD8A1 /* conversation.rs */ = {isa = PBXFileReference; path = conversation.rs; sourceTree = "<group>"; };
 		9A2C8D616B07975618BB1E80 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		A7F7DEBD58F8333E445BC540 /* hf-chat_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "hf-chat_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B160BEA9FA7F4E0C0F903421 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -50,11 +51,10 @@
 		D35FF12CE9663ACAF24ED7F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DC67A38108E984F01FCCEEFF /* conversation.rs */ = {isa = PBXFileReference; path = conversation.rs; sourceTree = "<group>"; };
 		DF2A3A899140BD991285808C /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
-		E6E7C1861C79707CE9B1AF78 /* model_suggestions.rs */ = {isa = PBXFileReference; path = model_suggestions.rs; sourceTree = "<group>"; };
 		E7B9A5CA1882357AC3A3C77A /* model.rs */ = {isa = PBXFileReference; path = model.rs; sourceTree = "<group>"; };
 		ECA3692E5314480395DEAB61 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		F056185FCAF17E051F4D368D /* user.rs */ = {isa = PBXFileReference; path = user.rs; sourceTree = "<group>"; };
-		F154C60D74FB565C6D837BE3 /* m20230918_070745_initial_models.rs */ = {isa = PBXFileReference; path = m20230918_070745_initial_models.rs; sourceTree = "<group>"; };
+		F0D9C21DB9B5DC72DBB03308 /* models.rs */ = {isa = PBXFileReference; path = models.rs; sourceTree = "<group>"; };
 		FBD1B82067A8A333943AD75F /* m20231229_125956_create_users.rs */ = {isa = PBXFileReference; path = m20231229_125956_create_users.rs; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -171,10 +171,12 @@
 		F1B5ACD87D762C983D26E847 /* commands */ = {
 			isa = PBXGroup;
 			children = (
+				86132DEF10CA827879618ABD /* api.rs */,
+				96D35812B0C628E8802DD8A1 /* conversation.rs */,
 				04E9A9512A1C4F586B02A98A /* load.rs */,
 				3D370133A55E67516BB80682 /* login.rs */,
 				23F195ED620F990CA19A61A5 /* mod.rs */,
-				E6E7C1861C79707CE9B1AF78 /* model_suggestions.rs */,
+				F0D9C21DB9B5DC72DBB03308 /* models.rs */,
 			);
 			path = commands;
 			sourceTree = "<group>";
@@ -197,13 +199,32 @@
 			children = (
 				CABAB8EA2BD18D47C2BD353B /* m20230914_053359_create_model.rs */,
 				03CA7153B3352B5AC05E1895 /* m20230918_064025_create_conversation.rs */,
-				F154C60D74FB565C6D837BE3 /* m20230918_070745_initial_models.rs */,
 				90D2CFA1FE1C4560C975B482 /* m20230918_082713_create_messages.rs */,
-				1D4A60AAFFEC996EAC7410C9 /* m20230920_064642_create_settings.rs */,
 				FBD1B82067A8A333943AD75F /* m20231229_125956_create_users.rs */,
 				13D84C88C6EE510730DCEA43 /* mod.rs */,
 			);
 			path = migrations;
+			sourceTree = "<group>";
+		};
+		"TEMP_32ADC5C3-660D-41FE-B4CE-C4760C02A9A9" /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
+		"TEMP_3C5D46DA-C454-4A40-90B0-E7734F9DCCC9" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
+			sourceTree = "<group>";
+		};
+		"TEMP_94B6997E-34F6-48F4-9B2E-6C7EF9E08280" /* arm64-sim */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = "arm64-sim";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
