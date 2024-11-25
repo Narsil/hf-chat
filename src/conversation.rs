@@ -5,7 +5,9 @@ use crate::state::{Message as DbMsg, User};
 use chrono::Utc;
 use leptos::leptos_dom::ev::SubmitEvent;
 use leptos::*;
+use leptos::logging::log;
 use serde::{Deserialize, Serialize};
+use web_sys::window;
 
 #[derive(Serialize, Deserialize)]
 struct GetMessages {
@@ -19,49 +21,64 @@ struct NewMessage {
     authorid: u32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct Query {
     conversationid: u32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+struct ConvData {
+    messages: Vec<Msg>,
+    me: User,
+    other: User,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DbConvData {
+    messages: Vec<DbMsg>,
+    users: Vec<User>
+}
+
 #[component]
-pub fn Conversation(conversationid: u32, me: u32, model: u32, users: Vec<User>) -> impl IntoView {
-    let me_user = users.iter().find(|user| user.id == me).expect("Me").clone();
-    let other = users
-        .iter()
-        .find(|user| user.id == model)
-        .expect("Other")
-        .clone();
+pub fn Conversation(conversationid: u32, me: u32, model: u32) -> impl IntoView {
+    let ref_input = create_node_ref::<html::Input>();
+    create_effect(move |_| {
+        if let Some(ref_input) = ref_input.get() {
+            let _ = ref_input.on_mount(|input| {
+                input.focus().ok();
+            });
+    }
+});
     let (message, set_message) = create_signal(String::new());
-    let messages = create_resource(
+    let convdata = create_resource(
         move || (),
         move |_| {
-            let users = users.clone();
             async move {
                 let args = serde_wasm_bindgen::to_value(&GetMessages { conversationid }).unwrap();
-                let value = invoke("get_messages", args).await;
-                let messages: Vec<DbMsg> =
+                let value = invoke("get_messages", args).await.unwrap();
+                let convdata: DbConvData =
                     serde_wasm_bindgen::from_value(value).expect("Correct conversations");
+                log!("Users {:?}", convdata.users.len());
 
-                let messages: Vec<_> = messages
-                    .into_iter()
-                    .map(|message| {
-                        let is_me = message.user_id == me;
-                        let user_id = message.user_id;
-                        let user = users
-                            .iter()
-                            .find(|u| u.id == user_id)
-                            .expect("User id")
-                            .clone();
-                        Msg {
-                            created_at: message.created_at,
-                            content: message.content,
-                            user,
-                            is_me,
-                        }
-                    })
-                    .collect();
-                messages
+                let me_user = convdata.users.iter().find(|u| u.id == me).expect("Me");
+                let other = convdata.users.iter().find(|u| u.id == model).expect("Other");
+
+                let messages = convdata.messages.into_iter().map(|message|{
+                    let is_me =  message.user_id == me_user.id;
+                    let user =  if is_me{me_user.clone()}else{other.clone()};
+                    Msg{
+                        created_at: message.created_at,
+                        content: message.content,
+                        is_me,
+                        user
+                    }
+                }).collect();
+
+                ConvData{
+                    messages,
+                    me: me_user.clone(),
+                    other: other.clone(),
+                }
             }
         },
     );
@@ -73,7 +90,6 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32, users: Vec<User>) 
     let send_message = move |ev: SubmitEvent| {
         ev.prevent_default();
         let content = message.get();
-        let other = other.clone();
         spawn_local(async move {
             let args = serde_wasm_bindgen::to_value(&NewMessage {
                 conversationid,
@@ -81,31 +97,36 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32, users: Vec<User>) 
                 authorid: me,
             })
             .unwrap();
-            invoke("new_message", args).await;
+            invoke("new_message", args).await.unwrap();
 
             let args = Query { conversationid };
             loop {
                 let arg = serde_wasm_bindgen::to_value(&args).unwrap();
                 let res = invoke("get_chunk", arg).await;
+                if res.is_err(){
+                    window().unwrap().location().reload().unwrap();
+                }
+                let res = res.unwrap();
                 let chunk: Option<String> = serde_wasm_bindgen::from_value(res).expect("Chunk");
                 if let Some(chunk) = chunk {
-                    messages.update(|messages| {
-                        messages.as_mut().map(|messages| {
-                            if let Some(message) = messages.last_mut() {
+                    convdata.update(|convdata| {
+                        convdata.as_mut().map(|convdata| {
+                            let user = convdata.other.clone();
+                            if let Some(message) = convdata.messages.last_mut() {
                                 if !message.is_me {
                                     message.content.push_str(&chunk);
                                 } else {
-                                    messages.push(Msg {
+                                    convdata.messages.push(Msg {
                                         created_at: Utc::now(),
-                                        user: other.clone(),
+                                        user,
                                         is_me: false,
                                         content: chunk,
                                     })
                                 }
                             } else {
-                                messages.push(Msg {
+                                convdata.messages.push(Msg {
                                     created_at: Utc::now(),
-                                    user: other.clone(),
+                                    user,
                                     is_me: false,
                                     content: chunk,
                                 })
@@ -117,11 +138,11 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32, users: Vec<User>) 
                 }
             }
         });
-        messages.update(|messages| {
-            messages.as_mut().map(|messages| {
-                messages.push(Msg {
+        convdata.update(|convdata| {
+            convdata.as_mut().map(|convdata| {
+                convdata.messages.push(Msg {
                     created_at: Utc::now(),
-                    user: me_user.clone(),
+                    user: convdata.me.clone(),
                     is_me: true,
                     content: message.get(),
                 })
@@ -131,16 +152,17 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32, users: Vec<User>) 
     };
 
     view! {
-        <div class="h-dvh max-h-dvh grow flex flex-col scrollbar lg:w-4/5 w-screen max-w-screen">
+        <div class="h-dvh max-h-dvh grow flex flex-col scrollbar lg:w-4/5 w-dvw max-w-dvw">
             <main class="grow flex flex-col-reverse overflow-auto max-h-screen">
                 <Suspense fallback=move || {
                     view! { <Loading /> }
                 }>
                     {move || {
-                        messages
+                        convdata
                             .get()
-                            .map(|messages| {
-                                messages
+                            .map(|convdata| {
+                                convdata
+                                    .messages
                                     .into_iter()
                                     .rev()
                                     .map(|message| {
@@ -216,6 +238,7 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32, users: Vec<User>) 
                         rows="1"
                         class="block mx-4 p-2.5 w-full text-sm text-gray-900 bg-white rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 resize-none"
                         placeholder="Your message..."
+                        _ref=ref_input
                         on:input=update_message
                         prop:value=message
                     />

@@ -194,6 +194,7 @@ pub async fn suggest_models(cache: &Cache, db: &DatabaseConnection) -> Result<()
                 None
             }
         })
+        .take(10)
         .collect();
 
     for sugg in models {

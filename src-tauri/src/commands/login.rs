@@ -9,7 +9,8 @@ use openidconnect::{
     StandardErrorResponse, TokenResponse,
 };
 use sea_orm::{ActiveModelTrait, ActiveValue::Set};
-use std::io::Write;
+use std::{io::Write, path::PathBuf};
+use tauri::Url;
 
 // static OPENID_SECRET: Option<&'static str> = option_env!("OPENID_SECRET");
 static OPENID_SECRET: Option<&'static str> = Some("64d7dfec-160a-41f0-921f-ab071cf4f16f");
@@ -54,6 +55,9 @@ pub enum OpenidError {
         #[from] openidconnect::DiscoveryError<openidconnect::reqwest::Error<::reqwest::Error>>,
     ),
 
+    #[error("Reqwest error {0}")]
+    Request(#[from] ::reqwest::Error),
+
     #[error("Signing error {0}")]
     Signing(#[from] openidconnect::SigningError),
 
@@ -83,6 +87,9 @@ pub enum OpenidError {
 
     #[error("Unset validators")]
     UnsetValidators,
+
+    #[error("Invalid profile")]
+    InvalidProfile,
 }
 
 // we must manually implement serde::Serialize
@@ -133,13 +140,40 @@ pub async fn login(state: tauri::State<'_, State>, url: String) -> Result<String
     Ok(auth_url.to_string())
 }
 
+async fn copy_to_local(url: &str, path: &PathBuf) -> Result<String, OpenidError>{
+    let mut path = path.to_owned();
+    let url = Url::parse(&url)?;
+    let profile_name: String = {
+        let path_segments = url
+            .path_segments()
+            .ok_or_else(|| OpenidError::InvalidProfile)?;
+        path_segments
+            .last()
+            .ok_or_else(|| OpenidError::InvalidProfile)?
+            .to_string()
+    };
+    path.push("profiles");
+    if !path.exists() {
+        info!("Attempting to create dir {}", path.display());
+        std::fs::create_dir_all(path.clone()).expect("Could not create dir");
+    };
+    path.push(profile_name.replace(' ', "-"));
+    info!("Writing avatar into {path:?}");
+    let mut file = std::fs::File::create(path.clone())?;
+    let response = reqwest::get(url).await?;
+    let data = response.bytes().await?;
+
+    file.write_all(&data)?;
+    Ok(path.display().to_string())
+}
+
 #[tauri::command]
 pub async fn login_callback(
     app_state: tauri::State<'_, State>,
     code: String,
     state: String,
 ) -> Result<(), OpenidError> {
-    info!("Login callback {code} {state}");
+    info!("Login callback");
 
     let Openid {
         csrf_token,
@@ -208,6 +242,8 @@ pub async fn login_callback(
         .and_then(|name| name.get(None))
         .map(|name| name.as_str())
         .unwrap_or("<not provided>");
+    let path = app_state.cache.path();
+    let profile = copy_to_local(profile, path).await.unwrap_or(profile.to_string());
     let db = &app_state.db;
     let new_user = user::ActiveModel {
         name: Set(name.to_string()),

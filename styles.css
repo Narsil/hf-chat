@@ -635,6 +635,10 @@ video {
   display: inline-flex;
 }
 
+.table {
+  display: table;
+}
+
 .hidden {
   display: none;
 }
@@ -711,16 +715,12 @@ video {
   width: 2rem;
 }
 
-.w-80 {
-  width: 20rem;
+.w-dvw {
+  width: 100dvw;
 }
 
 .w-full {
   width: 100%;
-}
-
-.w-screen {
-  width: 100vw;
 }
 
 .max-w-\[90\%\] {
@@ -827,6 +827,10 @@ video {
 
 .overflow-y-auto {
   overflow-y: auto;
+}
+
+.overflow-x-hidden {
+  overflow-x: hidden;
 }
 
 .rounded-full {

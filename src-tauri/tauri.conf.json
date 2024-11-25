@@ -25,11 +25,11 @@
     ],
     "security": {
       "csp": {
-        "default-src": "'self' asset:",
+        "default-src": "'self' asset: https://api-inference-huggingface.co https://huggingface.co",
         "connect-src": "tauri: ipc: http://ipc.localhost",
-        "img-src": "'self' asset: http://asset.localhost blob: data: https:",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
         "style-src": "'self'",
-        "script-src": "'wasm-unsafe-eval' 'unsafe-inline'"
+        "script-src": "'wasm-unsafe-eval'"
       },
       "assetProtocol": {
           "enable": true,

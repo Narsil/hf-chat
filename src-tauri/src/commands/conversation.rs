@@ -138,32 +138,6 @@ pub async fn new_message(
         conv.title = Set(new_title);
         conv.update(db).await.ok();
     }
-    //     });
-    // }
-    //     let db = state.db.clone();
-    //     let content = content.clone();
-    //     tokio::spawn(async move{
-    //         let messages = vec![api::Message{
-    //             role: api::Role::User,
-    //             content: format!("You are a summarization AI. You'll never answer a user's question directly, but instead summarize the user's request into a single short sentence of four words or less. Always start your answer with an emoji relevant to the summary. The content is `{content}`.")
-    //         }];
-    //         let url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct/v1/chat/completions";
-    //         let mut new_title = String::new();
-    //         if let Ok(mut newstream) = api::query(url.to_string(), messages).await{
-    //             while let Ok(Some(chunk)) = newstream.next().await{
-    //                 new_title.push_str(&chunk);
-
-    //             }
-    //         }
-    // if let Ok(Some(conversation)) = conversation::Entity::find_by_id(conversationid)
-    //     .one(&db)
-    //     .await{
-    //         let mut conv: conversation::ActiveModel = conversation.into();
-    //         conv.title = Set(new_title.to_string());
-    //         conv.update(&db).await.ok();
-    // }
-    //     });
-    // }
     let now = Utc::now();
     let message = message::ActiveModel {
         conversation_id: Set(conversation.id),
@@ -181,11 +155,17 @@ pub async fn new_message(
     Ok(())
 }
 
+#[derive(Serialize)]
+pub struct ConvData {
+    messages: Vec<message::Model>,
+    users: Vec<user::Model>,
+}
+
 #[tauri::command]
 pub async fn get_messages(
     state: tauri::State<'_, State>,
     conversationid: u32,
-) -> Result<Vec<message::Model>, Error> {
+) -> Result<ConvData, Error> {
     let db = &state.db;
     let conversation = conversation::Entity::find_by_id(conversationid)
         .one(db)
@@ -195,10 +175,13 @@ pub async fn get_messages(
         .filter(message::Column::ConversationId.eq(conversation.id))
         .all(db)
         .await?;
+    // TODO Get only the users from the conversation.
+    // Add a link table
+    let users: Vec<user::Model> = user::Entity::find().all(db).await?;
     info!(
         "Got {} messages for conv {}",
         messages.len(),
         conversation.id
     );
-    Ok(messages)
+    Ok(ConvData { messages, users })
 }

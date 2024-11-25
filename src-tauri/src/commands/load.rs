@@ -62,7 +62,6 @@ pub struct ConversationList {
 pub struct Load {
     conversations: Vec<ConversationList>,
     user: Option<user::Model>,
-    users: Vec<user::Model>,
 }
 
 #[tauri::command]
@@ -82,12 +81,17 @@ pub async fn load(state: tauri::State<'_, State>) -> Result<Load, Error> {
         .await
         .expect("query");
     let users = user::Entity::find().all(db).await?;
-    let user = users.first().cloned();
+    let user = if state.cache.token().is_some() {
+        // Also check that the token exists.
+        users.first().cloned()
+    } else {
+        None
+    };
+
     info!("Found user {:?}", user.as_ref().map(|u| &u.name));
     let load = Load {
         conversations,
         user,
-        users,
     };
     Ok(load)
 }

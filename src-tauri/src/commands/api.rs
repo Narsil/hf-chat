@@ -6,11 +6,30 @@ use ::reqwest::{
 };
 use chrono::Utc;
 use core::str;
-use log::info;
+use log::{debug, error, info};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
 };
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, thiserror::Error)]
+#[cfg_attr(test, derive(Serialize))]
+#[error("{error}")]
+pub struct SseError {
+    error: InnerError,
+}
+
+#[derive(Debug, Deserialize, thiserror::Error)]
+#[cfg_attr(test, derive(Serialize))]
+pub enum InnerError {
+    #[serde(rename = "Authorization header is correct, but the token seems invalid")]
+    #[error("Invalid token")]
+    InvalidToken,
+
+    #[serde(untagged)]
+    #[error("{0}")]
+    Default(String),
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -25,6 +44,18 @@ pub enum Error {
 
     #[error("Db error {0}")]
     DbError(#[from] sea_orm::DbErr),
+
+    #[error("Invalid chunk error {0}")]
+    InvalidChunkError(String),
+
+    #[error("Sse Error {0}")]
+    SseError(SseError),
+
+    #[error("Invalid Token")]
+    InvalidToken,
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 }
 // we must manually implement serde::Serialize
 impl serde::Serialize for Error {
@@ -107,12 +138,9 @@ pub struct Stream {
     leftover: Vec<u8>,
 }
 
-pub async fn query(url: String, messages: Vec<Message>) -> Result<Stream, Error> {
+pub async fn query(url: String, messages: Vec<Message>, token: &str) -> Result<Stream, Error> {
     info!("Query {url} {} messages", messages.len());
     let client = ::reqwest::Client::new();
-    let cache = hf_hub::Cache::default();
-    let token = cache.token().expect("Expected token");
-    info!("Got token {token:?}");
     let model = "tgi".to_string();
 
     let stream = true;
@@ -133,8 +161,8 @@ pub async fn query(url: String, messages: Vec<Message>) -> Result<Stream, Error>
         .json(&payload)
         .send()
         .await?;
-    info!("Client response received");
-    let res = res.error_for_status()?;
+    debug!("Client response received");
+    // let res = res.error_for_status()?;
     return Ok(Stream {
         res,
         leftover: vec![],
@@ -161,14 +189,18 @@ impl Stream {
                         serde_json::from_slice::<Chunk>(&subchunk[b"data: ".len()..])
                     {
                         let msg = &parsed.choices[0].delta.content;
-                        info!("Msg {msg:?}");
                         content.push_str(msg);
                     } else {
                         let owned = subchunk.to_owned();
                         self.leftover.extend(owned);
                     }
+                } else if let Ok(parsed) = serde_json::from_slice::<SseError>(&subchunk) {
+                    error!("Chunk Error {parsed:?}");
+                    return Err(Error::SseError(parsed));
                 } else {
-                    todo!("Odd event {subchunk:?}");
+                    return Err(Error::InvalidChunkError(
+                        String::from_utf8_lossy(&subchunk).into(),
+                    ));
                 }
             }
             Ok(Some(content))
@@ -183,7 +215,6 @@ pub async fn get_chunk(
     state: tauri::State<'_, State>,
     conversationid: u32,
 ) -> Result<Option<String>, Error> {
-    info!("Getting chunk");
     let db = &state.db;
     let (_conversation, model): (conversation::Model, Option<model::Model>) =
         conversation::Entity::find_by_id(conversationid)
@@ -193,9 +224,7 @@ pub async fn get_chunk(
             .ok_or(Error::MissingConversation(conversationid))?;
     let model = model.expect("Associated model");
     let mut stream = state.stream.lock().await;
-    info!("Locked stream");
     let chunk = if let Some(ref mut stream) = &mut *stream {
-        info!("Awaiting chunk");
         stream.next().await?
     } else {
         let messages: Vec<message::Model> = message::Entity::find()
@@ -204,20 +233,31 @@ pub async fn get_chunk(
             .await?;
 
         let messages = Message::from_db(messages);
-        info!("Sending {} messages.", messages.len());
         let url = model.endpoint;
-        info!("Creating new query to {url}");
-        let mut newstream = query(url, messages).await?;
-        info!("Waiting for first chunk");
-        let chunk = newstream.next().await.expect("chunk");
-        *stream = Some(newstream);
-        chunk
+        let cache = &state.cache;
+        let token = cache.token().expect("Expected token");
+        let mut newstream = query(url, messages, &token).await?;
+        match newstream.next().await {
+            Ok(chunk) => {
+                *stream = Some(newstream);
+                chunk
+            }
+            Err(Error::SseError(SseError {
+                error: InnerError::InvalidToken,
+            })) => {
+                error!("Invalid token, deleting it");
+                std::fs::remove_file(cache.token_path())?;
+                return Err(Error::InvalidToken);
+            }
+            Err(err) => {
+                return Err(err);
+            }
+        }
     };
     if chunk.is_none() {
         *stream = None;
     }
     drop(stream);
-    info!("Dropped stream");
     if let Some(chunk) = &chunk {
         let user: user::Model = user::Entity::find_by_id(model.user_id)
             .one(db)
@@ -248,4 +288,28 @@ pub async fn get_chunk(
         }
     }
     Ok(chunk)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserialize_chunk_error() {
+        let error = InnerError::InvalidToken;
+        assert_eq!(
+            serde_json::to_string(&error).unwrap(),
+            "\"Authorization header is correct, but the token seems invalid\""
+        );
+        let error = r#"{"error": "Authorization header is correct, but the token seems invalid"}"#;
+        let error: SseError = serde_json::from_str(&error).unwrap();
+        if let SseError {
+            error: InnerError::InvalidToken,
+        } = error
+        {
+            // OK
+        } else {
+            panic!("Invalid deserialization of chunk error {error:?}");
+        }
+    }
 }

@@ -1,5 +1,6 @@
 mod app;
 mod conversation;
+mod html;
 mod loading;
 mod login;
 mod message;

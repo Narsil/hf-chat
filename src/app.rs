@@ -10,8 +10,8 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"])]
-    pub async fn invoke(cmd: &str, args: JsValue) -> JsValue;
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], catch)]
+    pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(js_namespace = ["window", "__TAURI_INTERNALS__"])]
     fn convertFileSrc(filepath: &str, protocol: &str) -> JsValue;
@@ -51,7 +51,6 @@ pub fn asset(filepath: &str) -> String {
 struct Load {
     conversations: Vec<Conversation>,
     user: Option<User>,
-    users: Vec<User>,
 }
 
 #[component]
@@ -79,7 +78,7 @@ pub fn App() -> impl IntoView {
             spawn_local(async {
                 let args =
                     serde_wasm_bindgen::to_value(&LoginCallbackArgs { code, state }).unwrap();
-                invoke("login_callback", args).await;
+                invoke("login_callback", args).await.unwrap();
                 let location = window().location();
                 let protocol = location.protocol().expect("protocol");
                 let host = location.host().expect("host");
@@ -93,29 +92,33 @@ pub fn App() -> impl IntoView {
         move || sigload.get(),
         |_| async move {
             let args = JsValue::undefined();
-            let value = invoke("load", args).await;
+            let value = invoke("load", args).await.unwrap();
             let load: Load = serde_wasm_bindgen::from_value(value).expect("Correct conversations");
             load
         },
     );
 
-    let on_select_conv = move |index: usize| {
+    let on_select_conv = move |index: Option<usize>| {
+        if let Some(index) = index{
         let conversation: Option<Conversation> = load
             .get()
             .map(|load| load.conversations.get(index).cloned())
             .flatten();
-        set_conversation.set(conversation);
+            set_conversation.set(conversation);
+        }else{
+            set_conversation.set(None);
+        }
     };
     let create_conv = move |model_id: u32| {
         spawn_local(async move {
             let args =
                 serde_wasm_bindgen::to_value(&CreateConversation { modelid: model_id }).unwrap();
             log!("Args {args:?}");
-            let conv_value = invoke("create_conversation", args).await;
-            let conversation =
+            let conv_value = invoke("create_conversation", args).await.unwrap();
+            let conversation: Option<Conversation> =
                 serde_wasm_bindgen::from_value(conv_value).expect("Conversation created");
-            set_conversation.set(conversation);
-            set_sigload.update(|sig| *sig = *sig + 1);
+            set_conversation.set(conversation.clone());
+            set_sigload.update(|s| *s += 1)
         });
     };
     view! {
@@ -128,7 +131,15 @@ pub fn App() -> impl IntoView {
                         .map(|load| {
                             let conversations = load.conversations;
                             if let Some(user) = load.user {
-                                view! { <Nav conversations user on_select_conv create_conv /> }
+                                view! {
+                                    <Nav
+                                        conversations
+                                        user
+                                        on_select_conv
+                                        create_conv
+                                        show=conversation.get().is_none()
+                                    />
+                                }
                             } else {
                                 view! { <Login /> }
                             }
@@ -147,7 +158,6 @@ pub fn App() -> impl IntoView {
                                     conversationid=conversation.id
                                     me=(move || load.get().unwrap().user.unwrap().id)()
                                     model=conversation.user_id
-                                    users=(move || load.get().unwrap().users)()
                                 />
                             }
                         })

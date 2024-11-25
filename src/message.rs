@@ -3,6 +3,7 @@ use crate::state::User;
 use chrono::{DateTime, Local, Utc};
 use leptos::IntoView;
 use leptos::*;
+use pulldown_cmark::{Options, Parser};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -15,9 +16,10 @@ pub struct Msg {
 
 #[component]
 pub fn Message(message: Msg) -> impl IntoView {
-    let parser = pulldown_cmark::Parser::new(&message.content);
     let mut parsed = String::new();
-    pulldown_cmark::html::push_html(&mut parsed, parser);
+    let options = Options::all();
+    let parser = Parser::new_ext(&message.content, options);
+    crate::html::push_html(&mut parsed, parser);
     let datemsg = format!(
         "{}",
         DateTime::<Local>::from(message.created_at).format("%H:%M")
@@ -25,7 +27,7 @@ pub fn Message(message: Msg) -> impl IntoView {
     let profile = asset(&message.user.profile);
     view! {
         <div class="flex items-start m-5 gap-2.5" class:flex-row-reverse=move || message.is_me>
-            <img class="w-8 h-8 rounded-full" src=&profile alt="Jese image" />
+            <img class="w-8 h-8 rounded-full" src=&profile alt="User avatar" />
             <div class="flex flex-col gap-1 max-w-[90%]">
                 <div class="flex items-center space-x-2 rtl:space-x-reverse">
                     <span class="text-sm font-semibold text-gray-900 dark:text-white">
@@ -112,31 +114,5 @@ pub fn Message(message: Msg) -> impl IntoView {
                 </ul>
             </div>
         </div>
-        <script>hljs.highlightAll();</script>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_markdown() {
-        // Create parser with example Markdown text.
-        let markdown_input = "hello world";
-        let parser = pulldown_cmark::Parser::new(markdown_input);
-
-        // Write to a new String buffer.
-        let mut html_output = String::new();
-        pulldown_cmark::html::push_html(&mut html_output, parser);
-        assert_eq!(&html_output, "<p>hello world</p>\n");
-
-        // Create parser with example Markdown text.
-        let markdown_input =
-            "Compile the program using the `rustc` command:\n\n```bash\nrustc main.rs\n```";
-        let parser = pulldown_cmark::Parser::new(markdown_input);
-
-        // Write to a new String buffer.
-        let mut html_output = String::new();
-        pulldown_cmark::html::push_html(&mut html_output, parser);
-        assert_eq!(&html_output, "");
     }
 }

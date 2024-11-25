@@ -80,6 +80,8 @@ pub fn run() {
             let mut path = app.path().app_data_dir().expect("Have a local data dir");
             path.push("chat");
             let cache = cache(&path);
+            log::info!("Cache path {:?}", path);
+            log::info!("Cache token {:?}", cache.token());
             log::info!("Start the db");
             let db = tauri::async_runtime::block_on(async {
                 init_db(&cache).await.expect("Failed to create db")
