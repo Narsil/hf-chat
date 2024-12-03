@@ -3,3 +3,4 @@
 /Cargo.lock
 /src-tauri/target/
 *.sh
+store.jks
