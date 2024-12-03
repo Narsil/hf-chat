@@ -1,0 +1,16 @@
+[package]
+name = "tts"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+candle-core = { version = "0.8.0", features = ["metal"] }
+candle-nn = { version = "0.8.0", features = ["metal"] }
+candle-transformers = { version = "0.8.0", features = ["metal"] }
+tokenizers = "0.21.0"
+futures = "0.3.31"
+hf-hub = { path = "../../hf-hub", default-features = false, features = ["tokio-rustls"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }

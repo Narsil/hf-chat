@@ -4,8 +4,8 @@ use crate::message::{Message, Msg};
 use crate::state::{Message as DbMsg, User};
 use chrono::Utc;
 use leptos::leptos_dom::ev::SubmitEvent;
-use leptos::*;
 use leptos::logging::log;
+use leptos::*;
 use serde::{Deserialize, Serialize};
 use web_sys::window;
 
@@ -36,7 +36,7 @@ struct ConvData {
 #[derive(Serialize, Deserialize)]
 struct DbConvData {
     messages: Vec<DbMsg>,
-    users: Vec<User>
+    users: Vec<User>,
 }
 
 #[component]
@@ -47,38 +47,48 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32) -> impl IntoView {
             let _ = ref_input.on_mount(|input| {
                 input.focus().ok();
             });
-    }
-});
+        }
+    });
     let (message, set_message) = create_signal(String::new());
     let convdata = create_resource(
         move || (),
-        move |_| {
-            async move {
-                let args = serde_wasm_bindgen::to_value(&GetMessages { conversationid }).unwrap();
-                let value = invoke("get_messages", args).await.unwrap();
-                let convdata: DbConvData =
-                    serde_wasm_bindgen::from_value(value).expect("Correct conversations");
-                log!("Users {:?}", convdata.users.len());
+        move |_| async move {
+            let args = serde_wasm_bindgen::to_value(&GetMessages { conversationid }).unwrap();
+            let value = invoke("get_messages", args).await.unwrap();
+            let convdata: DbConvData =
+                serde_wasm_bindgen::from_value(value).expect("Correct conversations");
+            log!("Users {:?}", convdata.users.len());
 
-                let me_user = convdata.users.iter().find(|u| u.id == me).expect("Me");
-                let other = convdata.users.iter().find(|u| u.id == model).expect("Other");
+            let me_user = convdata.users.iter().find(|u| u.id == me).expect("Me");
+            let other = convdata
+                .users
+                .iter()
+                .find(|u| u.id == model)
+                .expect("Other");
 
-                let messages = convdata.messages.into_iter().map(|message|{
-                    let is_me =  message.user_id == me_user.id;
-                    let user =  if is_me{me_user.clone()}else{other.clone()};
-                    Msg{
+            let messages = convdata
+                .messages
+                .into_iter()
+                .map(|message| {
+                    let is_me = message.user_id == me_user.id;
+                    let user = if is_me {
+                        me_user.clone()
+                    } else {
+                        other.clone()
+                    };
+                    Msg {
                         created_at: message.created_at,
                         content: message.content,
                         is_me,
-                        user
+                        user,
                     }
-                }).collect();
+                })
+                .collect();
 
-                ConvData{
-                    messages,
-                    me: me_user.clone(),
-                    other: other.clone(),
-                }
+            ConvData {
+                messages,
+                me: me_user.clone(),
+                other: other.clone(),
             }
         },
     );
@@ -103,7 +113,7 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32) -> impl IntoView {
             loop {
                 let arg = serde_wasm_bindgen::to_value(&args).unwrap();
                 let res = invoke("get_chunk", arg).await;
-                if res.is_err(){
+                if res.is_err() {
                     window().unwrap().location().reload().unwrap();
                 }
                 let res = res.unwrap();
@@ -138,6 +148,7 @@ pub fn Conversation(conversationid: u32, me: u32, model: u32) -> impl IntoView {
                 }
             }
         });
+        log!("Inserting new message");
         convdata.update(|convdata| {
             convdata.as_mut().map(|convdata| {
                 convdata.messages.push(Msg {
