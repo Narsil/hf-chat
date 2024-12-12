@@ -31,5 +31,13 @@ thiserror = "1.0.65"
 chrono = "0.4.38"
 openidconnect = "3.5.0"
 reqwest = {version = "0.12", default-features = false }
+mistralrs = { path = "../../mistral.rs/mistralrs"}
 tokio = "1.41.0"
 tauri-plugin-fs = "2"
+anyhow = "1"
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+mistralrs = { path = "../../mistral.rs/mistralrs" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mistralrs = { path = "../../mistral.rs/mistralrs", features = ["metal"] }

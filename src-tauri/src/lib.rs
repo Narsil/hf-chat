@@ -54,7 +54,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
-                .filter(|metadata| metadata.target().starts_with("hf_chat_lib"))
+                // .filter(|metadata| metadata.target().starts_with("hf_chat_lib"))
                 .build(),
         )
         .plugin(tauri_plugin_shell::init())

@@ -56,6 +56,9 @@ pub enum Error {
 
     #[error(transparent)]
     IoError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Local(#[from] crate::commands::local::Error),
 }
 // we must manually implement serde::Serialize
 impl serde::Serialize for Error {
@@ -133,12 +136,26 @@ pub struct Chunk {
     choices: Vec<Choice>,
 }
 
-pub struct Stream {
+pub enum Stream {
+    Api(Api),
+    Local(crate::commands::local::Stream),
+}
+
+impl Stream {
+    pub async fn next(&mut self) -> Result<Option<String>, Error> {
+        match self {
+            Stream::Api(api) => api.next().await,
+            Stream::Local(local) => Ok(local.next().await),
+        }
+    }
+}
+
+pub struct Api {
     res: Response,
     leftover: Vec<u8>,
 }
 
-pub async fn query(url: String, messages: Vec<Message>, token: &str) -> Result<Stream, Error> {
+pub async fn query(url: String, messages: Vec<Message>, token: &str) -> Result<Api, Error> {
     info!("Query {url} {} messages", messages.len());
     let client = ::reqwest::Client::new();
     let model = "tgi".to_string();
@@ -163,13 +180,13 @@ pub async fn query(url: String, messages: Vec<Message>, token: &str) -> Result<S
         .await?;
     debug!("Client response received");
     // let res = res.error_for_status()?;
-    return Ok(Stream {
+    return Ok(Api {
         res,
         leftover: vec![],
     });
 }
 
-impl Stream {
+impl Api {
     pub async fn next(&mut self) -> Result<Option<String>, Error> {
         if let Some(chunk) = self.res.chunk().await? {
             let mut content = String::new();
@@ -232,26 +249,34 @@ pub async fn get_chunk(
             .all(db)
             .await?;
 
-        let messages = Message::from_db(messages);
         let url = model.endpoint;
-        let cache = &state.cache;
-        let token = cache.token().expect("Expected token");
-        let mut newstream = query(url, messages, &token).await?;
-        match newstream.next().await {
-            Ok(chunk) => {
-                *stream = Some(newstream);
-                chunk
+        if url.starts_with("https://") {
+            let messages = Message::from_db(messages);
+            let cache = &state.cache;
+            let token = cache.token().expect("Expected token");
+            let mut newstream = query(url, messages, &token).await?;
+            match newstream.next().await {
+                Ok(chunk) => {
+                    *stream = Some(Stream::Api(newstream));
+                    chunk
+                }
+                Err(Error::SseError(SseError {
+                    error: InnerError::InvalidToken,
+                })) => {
+                    error!("Invalid token, deleting it");
+                    std::fs::remove_file(cache.token_path())?;
+                    return Err(Error::InvalidToken);
+                }
+                Err(err) => {
+                    return Err(err);
+                }
             }
-            Err(Error::SseError(SseError {
-                error: InnerError::InvalidToken,
-            })) => {
-                error!("Invalid token, deleting it");
-                std::fs::remove_file(cache.token_path())?;
-                return Err(Error::InvalidToken);
-            }
-            Err(err) => {
-                return Err(err);
-            }
+        } else {
+            let model_id = url;
+            let mut newstream = crate::commands::local::local_stream(model_id, messages).await?;
+            let chunk = newstream.next().await;
+            *stream = Some(Stream::Local(newstream));
+            chunk
         }
     };
     if chunk.is_none() {
