@@ -81,6 +81,11 @@
                 trunk
                 gradle
                 jdk
+                openssl
+                glib
+                glib-networking
+                gtk3
+                webkitgtk_4_1
               ]
               ++ lib.optionals stdenv.isDarwin (
                 with darwin.apple_sdk.frameworks;
@@ -92,6 +97,9 @@
                   lld
                 ]
               );
+
+            GIO_MODULE_DIR = "${pkgs.glib-networking}/lib/gio/modules/";
+            XDG_DATA_DIRS = "${gsettings-desktop-schemas}/share/gsettings-schemas/${gsettings-desktop-schemas.name}:${gtk3}/share/gsettings-schemas/${gtk3.name}:$XDG_DATA_DIRS";
           };
       });
     };

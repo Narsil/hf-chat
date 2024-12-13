@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::entities::message;
 use mistralrs::{
     Model, NormalRequest, PagedAttentionMetaBuilder, Request, RequestLike, Response,
